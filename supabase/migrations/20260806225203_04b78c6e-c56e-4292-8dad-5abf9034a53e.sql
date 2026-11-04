@@ -1,0 +1,2 @@
+REVOKE ALL ON FUNCTION public.match_editorial_content(vector, double precision, int, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.match_editorial_content(vector, double precision, int, text) TO service_role;

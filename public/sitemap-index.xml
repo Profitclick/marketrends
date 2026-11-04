@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/sitemap</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/news-sitemap</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/topic-sitemap</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/entity-sitemap</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/knowledge-sitemap</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/search-intent-sitemap</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://marketrends.no/sitemap.xml</loc>
+  </sitemap>
+</sitemapindex>

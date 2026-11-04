@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789219636836,
+      "tag": "0000_deterministic_states_and_metrics",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789404521846,
+      "tag": "0001_phase_6_2d_deterministic_first_convergence",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790362508905,
+      "tag": "0002_phase_7a_cluster_membership",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790362596250,
+      "tag": "0003_phase_7a_membership_rule_tighten",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790855396666,
+      "tag": "0004_phase_7a_cluster_membership_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793521521055,
+      "tag": "0005_repair_news_scheduler_target",
+      "breakpoints": true
+    }
+  ]
+}

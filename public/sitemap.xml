@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- Homepage -->
+  <url>
+    <loc>https://marketrends.no/</loc>
+    <changefreq>hourly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="nb" href="https://marketrends.no/"/>
+    <xhtml:link rel="alternate" hreflang="no" href="https://marketrends.no/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://marketrends.no/"/>
+  </url>
+  
+  <!-- Category pages -->
+  <url>
+    <loc>https://marketrends.no/kategori/krypto-trading</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <url>
+    <loc>https://marketrends.no/kategori/teknologi-ai</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <url>
+    <loc>https://marketrends.no/kategori/finans-marked</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <url>
+    <loc>https://marketrends.no/kategori/grunder-startups</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <url>
+    <loc>https://marketrends.no/kategori/penger-karriere</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <url>
+    <loc>https://marketrends.no/kategori/trender-analyse</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- About page -->
+  <url>
+    <loc>https://marketrends.no/om-oss</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+</urlset>

@@ -1,0 +1,1 @@
+SELECT public.cron_invoke('backfill-enrichment', '{"limit":10}'::jsonb);

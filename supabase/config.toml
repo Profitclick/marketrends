@@ -1,1 +1,66 @@
-project_id = "jsfzdlgfxvnlosrsafjw"
+project_id = "jjxkhpjroxfobzzrguov"
+
+[functions.enrich-article]
+verify_jwt = false
+
+[functions.rebuild-topic-stats]
+verify_jwt = false
+
+[functions.backfill-enrichment]
+verify_jwt = false
+
+[functions.topic-sitemap]
+verify_jwt = false
+
+[functions.rebuild-entity-stats]
+verify_jwt = false
+
+[functions.entity-sitemap]
+verify_jwt = false
+
+[functions.generate-knowledge-pages]
+verify_jwt = false
+
+[functions.generate-comparisons]
+verify_jwt = false
+
+[functions.generate-guides]
+verify_jwt = false
+
+[functions.compute-trends]
+verify_jwt = false
+
+[functions.knowledge-sitemap]
+verify_jwt = false
+
+[functions.compute-opportunities]
+verify_jwt = false
+
+[functions.orchestrate-content]
+verify_jwt = false
+
+[functions.compute-authority]
+verify_jwt = false
+
+[functions.compute-editorial-authority]
+verify_jwt = false
+
+[functions.compute-search-intents]
+verify_jwt = false
+
+[functions.generate-search-intent-page]
+verify_jwt = false
+
+[functions.search-intent-sitemap]
+verify_jwt = false
+
+[functions.orchestrate-search-intents]
+verify_jwt = false
+
+[functions.embed-content]
+verify_jwt = false
+
+[functions.semantic-duplicate-check]
+verify_jwt = false
+
+
