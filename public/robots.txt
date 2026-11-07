@@ -1,40 +1,8 @@
 # Marketrends.no - Norsk Finans, Teknologi & Kryptonyheter
-# https://marketrends.no
-
 User-agent: *
 Allow: /
-Allow: /cluster/
-Allow: /ressurser
-Allow: /newsletter
 Disallow: /dashboard
 Disallow: /admin
+Disallow: /auth
 
-# Sitemaps
-Sitemap: https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/sitemap
-Sitemap: https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/news-sitemap
-Sitemap: https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/topic-sitemap
-
-# Crawl-delay for respectful crawling
-Crawl-delay: 1
-
-# Google News Bot
-User-agent: Googlebot-News
-Allow: /
-
-# Google
-User-agent: Googlebot
-Allow: /
-
-# Bing
-User-agent: Bingbot
-Allow: /
-
-# Allow social media bots for rich previews
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
-User-agent: LinkedInBot
-Allow: /
+Sitemap: https://marketrends.no/sitemap-index.xml

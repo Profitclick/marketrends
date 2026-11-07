@@ -86,13 +86,13 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
       <Helmet>
         <title>{title}</title>
         <meta name="description" content={desc} />
-        <link rel="canonical" href={`https://marketrends.no/cluster/${cluster.slug}`} />
+        <link rel="canonical" href={`https://marketrends.no/${cluster.slug}`} />
         <script type="application/ld+json">{JSON.stringify({
           "@context": "https://schema.org",
           "@type": "CollectionPage",
           name: cluster.name,
           description: desc,
-          url: `https://marketrends.no/cluster/${cluster.slug}`,
+          url: `https://marketrends.no/${cluster.slug}`,
         })}</script>
       </Helmet>
       <Navigation />
@@ -191,7 +191,7 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
               const c = CLUSTERS.find((x) => x.slug === r);
               if (!c) return null;
               return (
-                <Link key={r} to={`/cluster/${r}`} className="border border-border px-3 py-1.5 text-sm hover:bg-muted">
+                <Link key={r} to={`/${r}`} className="border border-border px-3 py-1.5 text-sm hover:bg-muted">
                   {c.name}
                 </Link>
               );

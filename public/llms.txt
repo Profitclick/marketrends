@@ -4,27 +4,12 @@
 > technology, crypto, and market trends. Articles are ingested from 20+ RSS feeds,
 > rewritten by an AI pipeline, and published automatically in Norwegian.
 
-## Dynamic context endpoint (always up-to-date)
-
-The following URL returns a complete, live project overview including database stats,
-feed status, and recent articles – updated on every request:
-
-```
-https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/project-context
-```
-
-Paste this URL into any LLM chat (GitHub Copilot, ChatGPT, Claude, etc.) to instantly
-provide full context about the project architecture, tech stack, content categories,
-pipeline logic, and current live statistics.
-
 ## Quick reference
 
 - Live site: https://marketrends.no
 - Repository: https://github.com/openorway/marketrends
-- Lovable project: https://lovable.dev/projects/ed73ad9f-43df-4ba1-986e-155671257f39
-- Supabase project: https://supabase.com/dashboard/project/jsfzdlgfxvnlosrsafjw
-- RSS feed: https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/export-rss?format=rss
-- JSON feed: https://jsfzdlgfxvnlosrsafjw.supabase.co/functions/v1/export-rss?format=json
+- News: https://marketrends.no/sitemap-news.xml (news sitemap)
+- Sitemap index: https://marketrends.no/sitemap-index.xml
 
 ## Tech stack
 
