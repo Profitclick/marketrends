@@ -23,7 +23,7 @@ export async function generateSitemaps(outDir, base, key) {
   const write = (name, xml) => { fs.writeFileSync(path.join(outDir, name), xml); files.push(name); };
   const lm = (r) => (r.updated_at || r.created_at || "").slice(0, 10) || undefined;
 
-  const cats = ["krypto-trading", "teknologi-ai", "finans-marked", "startup-innovasjon", "fintech-betaling", "regulering-politikk", "baerekraft-esg"];
+  const cats = ["krypto-trading", "teknologi-ai", "finans-marked", "grunder-startups", "penger-karriere", "trender-analyse", "guider-forklart"];
   write("sitemap-pages.xml", urlset([{ path: "/" }, ...VERTICALS.map((v) => ({ path: `/${v}` })), ...cats.map((c) => ({ path: `/kategori/${c}` })), { path: "/om-oss" }, { path: "/ressurser" }]));
 
   const articles = dedupe(await fetchAll(base, key, "articles", "slug,title,created_at,updated_at"));

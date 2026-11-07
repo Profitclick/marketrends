@@ -196,7 +196,7 @@ const NewsView = () => {
 
   const getCategoryArticles = (catName: string, count: number) => {
     const catArticles = (articlesByCategory[catName] || []).filter((a) => !shownIds.has(a.id));
-    const result = catArticles.length > 0 ? catArticles.slice(0, count) : articles.filter((a) => !shownIds.has(a.id)).slice(0, count);
+    const result = catArticles.slice(0, count); // never fill with other categories
     result.forEach((a) => shownIds.add(a.id));
     return result;
   };

@@ -10,13 +10,13 @@ interface Props {
 }
 
 const TARGET_BASE: Record<string, string> = {
-  article: "/artikkel/",
+  article: "/",
   topic: "/topic/",
   entity: "/entity/",
   guide: "/guide/",
   knowledge: "/knowledge/",
   comparison: "/compare/",
-  cluster: "/cluster/",
+  cluster: "/",
   intent: "/intent/",
 };
 
