@@ -22,7 +22,7 @@ const GuidePage = lazy(() => import("./pages/GuidePage"));
 const Academy = lazy(() => import("./pages/Academy"));
 const Tools = lazy(() => import("./pages/Tools"));
 const Trending = lazy(() => import("./pages/Trending"));
-const ClusterPage = lazy(() => import("./pages/ClusterPage"));
+const ClusterRedirect = lazy(() => import("./pages/ClusterRedirect"));
 const SearchIntentPage = lazy(() => import("./pages/SearchIntentPage"));
 const VerticalPage = lazy(() => import("./pages/VerticalPage"));
 const Resources = lazy(() => import("./pages/Resources"));
