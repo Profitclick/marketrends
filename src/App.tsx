@@ -56,7 +56,7 @@ const App = () => (
             <Route path="/academy" element={<Academy />} />
             <Route path="/tools" element={<Tools />} />
             <Route path="/trending" element={<Trending />} />
-            <Route path="/cluster/:slug" element={<ClusterPage />} />
+            <Route path="/cluster/:slug" element={<ClusterRedirect />} />
             <Route path="/intent/:slug" element={<SearchIntentPage />} />
             <Route path="/ai" element={<VerticalPage />} />
             <Route path="/krypto" element={<VerticalPage />} />
