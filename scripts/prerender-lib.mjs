@@ -122,3 +122,30 @@ export function hubPage({ prefix, row, label, articles = [] }) {
     schemas: [breadcrumb([{ name: "Forside", path: "/" }, { name }])],
   };
 }
+
+// Category copy mirrors CATEGORY_MAP in src/pages/CategoryPage.tsx (existing app text).
+export const CATEGORIES = {
+  "krypto-trading": { name: "Krypto & Trading", description: "Siste nytt om kryptovaluta, Bitcoin, Ethereum, trading og DeFi. Norske perspektiver på det globale kryptomarkedet." },
+  "teknologi-ai": { name: "Teknologi & AI", description: "Nyheter om kunstig intelligens, teknologi, SaaS og digital transformasjon. AI-verktøy og tech-innovasjon." },
+  "finans-marked": { name: "Finans & Marked", description: "Fintech-nyheter, bankinnovasjon, investering og markedsanalyse. Oslo Børs og norsk økonomi." },
+  "grunder-startups": { name: "Gründer & Startups", description: "Inspirerende gründerhistorier, startup-nyheter og venture capital. Norsk innovasjon og entrepreneurskap." },
+  "penger-karriere": { name: "Penger & Karriere", description: "Personlig økonomi, karrieretips og jobbmarked. Slik tjener du mer og bygger din karriere." },
+  "trender-analyse": { name: "Trender & Analyse", description: "Dyptgående markedsanalyser, trender og data. Forstå hva som driver markedene." },
+  "guider-forklart": { name: "Guider & Forklart", description: "Praktiske guider og forklaringer. Lær hvordan du navigerer finans, krypto og tech." },
+};
+
+export const routeFile = (outDir, p) => (p === "/" ? `${outDir}/index.html` : `${outDir}${decodeURI(p)}/index.html`);
+
+const unxml = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+
+// Compare ordinary sitemap URLs with generated route files. News sitemap is excluded (its URLs are articles).
+export function parity(fs, outDir, prerendered) {
+  const files = fs.readdirSync(outDir).filter((f) => /^sitemap-(pages|articles-\d+|topics|entities|guides|knowledge|comparison)\.xml$/.test(f));
+  if (!files.some((f) => f.startsWith("sitemap-articles-"))) throw new Error("parity: no article sitemap generated");
+  const sitemap = new Set();
+  for (const f of files) for (const m of fs.readFileSync(`${outDir}/${f}`, "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)) sitemap.add(unxml(m[1]));
+  const outputs = new Set([...prerendered].map((p) => SITE + p));
+  const missing = [...sitemap].filter((u) => !outputs.has(u) || !fs.existsSync(routeFile(outDir, u.slice(SITE.length) || "/")));
+  const unexpected = [...outputs].filter((u) => !sitemap.has(u));
+  return { sitemapFiles: files, sitemap: sitemap.size, outputs: outputs.size, missing, unexpected };
+}
