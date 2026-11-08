@@ -73,10 +73,10 @@ export async function prerender(outDir, base, key, io = fs) {
 
   // Public pages outside DB hubs (copy mirrors each React page's own title/H1).
   const STATIC = [
-    ["/academy", "Markettrends Academy – Lær finans, AI og entreprenørskap", "Lær finans, AI og entreprenørskap", "Academy", "Strukturerte læringsløp om finans, AI og entreprenørskap for norske lesere."],
-    ["/tools", "Verktøy – Kalkulatorer for finans, SaaS og startup", "Kalkulatorer og verktøy", "Verktøy", "Kalkulatorer og verktøy for finans, SaaS og startup."],
-    ["/trending", "Trending nå – Hva beveger markedet i dag?", "Trending nå", "Trending", "Temaer og aktører som får mest oppmerksomhet i norske finans- og teknologinyheter nå."],
-    ["/newsletter", "Newsletter Center – temabaserte nyhetsbrev | Marketrends", "Nyhetsbrev", "Nyhetsbrev", "Temabaserte nyhetsbrev om finans, fintech, krypto, AI og investering fra Marketrends."],
+    ["/academy", "Markettrends Academy – Lær finans, AI og entreprenørskap", "Lær finans, AI og entreprenørskap", "Academy", "Norsk læringshub for finans, AI, SaaS, krypto og entreprenørskap. Strukturerte guider og kunnskapssider basert på dagsaktuelle nyheter."],
+    ["/tools", "Verktøy – Kalkulatorer for finans, SaaS og startup", "Kalkulatorer og verktøy", "Verktøy", "Praktiske norske kalkulatorer for investering, SaaS-verdsettelse, runway, burn rate, AI ROI og mer. Bygget for grunnleggere og investorer."],
+    ["/trending", "Trending nå – Hva beveger markedet i dag?", "Trending nå", "Trending", "Sanntidsoversikt over de mest leste artiklene, raskest voksende temaene og mest omtalte aktørene innen finans, krypto, AI og teknologi i Norge."],
+    ["/newsletter", "Newsletter Center – temabaserte nyhetsbrev | Marketrends", "Nyhetsbrev", "Nyhetsbrev", "Meld deg på Marketrends sine temabaserte nyhetsbrev innen AI, krypto, fintech, startup, investering og trading."],
   ];
   for (const [p, title, h1, crumbName, description] of STATIC) write(listPage({ path: p, title, h1, crumbName, description, items: latest.slice(0, 10) }));
   // /ressurser/:type renders Resources, whose canonical is /ressurser; mirror that so the fallback never shows the homepage canonical.
