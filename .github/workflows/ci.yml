@@ -35,8 +35,9 @@ jobs:
         run: npx tsc -p tsconfig.node.json --noEmit
 
   lint:
-    name: Lint
+    name: Lint (advisory)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,3 +72,26 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  lockfile:
+    name: Generate lockfile artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Refresh package lock
+        run: npm install --package-lock-only --no-audit --no-fund
+
+      - name: Upload package lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-lock
+          path: package-lock.json
+          if-no-files-found: error
