@@ -71,6 +71,20 @@
       "when": 1794115011107,
       "tag": "0009_phase7c_reference_score_column",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794117885491,
+      "tag": "0010_phase7c1_admin_feed_mutations",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794117919262,
+      "tag": "0011_phase7c1_public_link_visibility",
+      "breakpoints": true
     }
   ]
 }

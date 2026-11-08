@@ -2201,6 +2201,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_public_link_endpoint: {
+        Args: { endpoint_slug: string; endpoint_type: string }
+        Returns: boolean
+      }
       match_editorial_content: {
         Args: {
           exclude_ref?: string

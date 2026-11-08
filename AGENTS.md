@@ -11,3 +11,5 @@
 - Measured search metrics live in private GSC fact tables; page and query datasets must never be summed, and daily refresh revalidates the selected verified property. Why: top-query omissions and dimension overlap make synthetic or mixed totals misleading.
 - GSC recommendations and pillar reviews are analysis-only; noAI coverage checks fail closed without a cached semantic input. Why: measurement must never trigger content generation or assert an unverified gap.
 - Article internal links reconcile in bounded transactional cursor batches, then a relation-change queue; reference links reconcile separately. Why: full-corpus coverage and stale-link pruning without unbounded function queries.
+- RSS feed mutations must use the database-backed admin policy only; never retain an authenticated-user ALL policy. Why: permissive policies combine with OR and can silently bypass the admin restriction.
+- Public internal links must resolve both endpoints to existing public content; admins retain audit visibility. Why: readers need editorial links, not references to drafts or private analysis.
