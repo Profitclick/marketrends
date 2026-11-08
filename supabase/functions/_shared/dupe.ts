@@ -27,7 +27,7 @@ export type DupeVerdict = {
   candidates: MatchRow[];
 };
 
-export type MatchRow = { content_type: string; ref: string; title: string | null; similarity: number };
+export type MatchRow = { content_type: string; ref: string; title: string; similarity: number };
 
 type EnrichedRow = {
   title?: string | null; source_url?: string | null; canonical_url?: string | null;
@@ -81,7 +81,7 @@ export async function evaluateDuplicate(
       semantic: Number(m.similarity) || 0,
       headline: headlineSimilarity(c.title, matchTitle),
       entity_overlap: overlapRatio(c.entities || [], row.tags || []),
-      topic_overlap: overlapRatio(c.topics || [], [row.category].filter(Boolean)),
+      topic_overlap: overlapRatio(c.topics || [], [row.category].filter(Boolean) as string[]),
       event_similarity: c.event ? headlineSimilarity(c.event, matchTitle) : 0,
       same_source_url: !!(c.source_url && row.source_url && normalizeUrl(c.source_url) === normalizeUrl(row.source_url)),
       same_canonical_url: !!(c.canonical_url && row.canonical_url && normalizeUrl(c.canonical_url) === normalizeUrl(row.canonical_url)),
