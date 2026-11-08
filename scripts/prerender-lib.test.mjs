@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { renderRoute, articlePage } from "./prerender-lib.mjs";
+import { renderRoute, articlePage, listPage } from "./prerender-lib.mjs";
 
 const tpl = `<html><head><title>Generic</title><meta name="description" content="g"><meta property="og:url" content="https://marketrends.no/" /></head><body><div id="root"></div></body></html>`;
 const a = { slug: "test-sak", title: "Test sak", content: "Første avsnitt med tilstrekkelig lengde til å telle som tekst.", category: "Finans & Marked", source_name: "NRK", created_at: "2026-11-08T10:00:00Z", article_topics: [{ topics: { slug: "inflasjon", name: "Inflasjon" } }] };
