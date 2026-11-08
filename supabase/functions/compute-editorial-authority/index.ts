@@ -21,7 +21,9 @@ const NO_KEYWORDS = [
 
 type ScoredArticle = {
   sources?: unknown; entities?: unknown; topics?: unknown; ingress?: string | null;
-  key_takeaways?: unknown; faq?: unknown; [k: string]: unknown;
+  key_takeaways?: unknown; faq?: unknown; title?: string | null; body?: string | null;
+  updated_at?: string | null; published_at?: string | null; created_at?: string | null;
+  [k: string]: unknown;
 };
 
 function scoreArticle(a: ScoredArticle, inboundLinks: number) {
