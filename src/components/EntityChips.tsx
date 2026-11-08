@@ -15,7 +15,7 @@ export const EntityChips = ({ articleId, className }: { articleId: string; class
         .order("is_primary", { ascending: false })
         .order("mention_count", { ascending: false })
         .limit(6);
-      setItems((data || []).map((r: any) => r.entities).filter(Boolean));
+      setItems((data || []).map((r) => r.entities).filter(Boolean));
     })();
   }, [articleId]);
   if (!items.length) return null;

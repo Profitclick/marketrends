@@ -56,7 +56,7 @@ export const TopicHubGrid = ({ limit = 6, title = "Trending temaer", categoryHin
             .in("id", heroIds);
           if (cancelled) return;
           const map: Record<string, LatestArticle> = {};
-          (arts || []).forEach((a: any) => { map[a.id] = a; });
+          (arts || []).forEach((a) => { map[a.id] = a; });
           const byTopic: Record<string, LatestArticle | undefined> = {};
           list.forEach((t) => { if (t.hero_article_id) byTopic[t.id] = map[t.hero_article_id]; });
           setLatest(byTopic);

@@ -43,8 +43,8 @@ export const EntityTimeline = ({ entityId, pageSize = 20 }: Props) => {
         .range(from, to);
       if (cancelled) return;
       const arts = (data || [])
-        .map((r: any) => r.articles)
-        .filter((a: any) => a && a.published);
+        .map((r) => r.articles)
+        .filter((a) => a && a.published);
       setItems((prev) => [...prev, ...arts]);
       if (arts.length < pageSize) setDone(true);
       setLoading(false);

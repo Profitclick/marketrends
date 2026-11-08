@@ -27,23 +27,24 @@ export function useAuth() {
     };
   }, []);
 
+  const userId = session?.user?.id;
   useEffect(() => {
     let cancelled = false;
-    if (!session?.user) {
+    if (!userId) {
       setIsAdmin(false);
       return;
     }
     supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", session.user.id)
+      .eq("user_id", userId)
       .eq("role", "admin")
       .maybeSingle()
       .then(({ data }) => {
         if (!cancelled) setIsAdmin(!!data);
       });
     return () => { cancelled = true; };
-  }, [session?.user?.id]);
+  }, [userId]);
 
   return { session, user: session?.user ?? null, isAdmin, loading };
 }

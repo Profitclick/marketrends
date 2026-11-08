@@ -40,7 +40,7 @@ export const MostReadToday = ({
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(80);
-      const ids = (recent || []).map((a: any) => a.id);
+      const ids = (recent || []).map((a) => a.id);
       if (!ids.length) {
         if (!cancelled) setItems([]);
         return;
@@ -53,14 +53,14 @@ export const MostReadToday = ({
         )
         .limit(2000);
       const counts = new Map<string, number>();
-      (rels || []).forEach((r: any) => {
+      (rels || []).forEach((r) => {
         if (ids.includes(r.article_id)) counts.set(r.article_id, (counts.get(r.article_id) || 0) + 1);
         if (ids.includes(r.related_article_id))
           counts.set(r.related_article_id, (counts.get(r.related_article_id) || 0) + 1);
       });
       const ranked = (recent || [])
-        .map((a: any) => ({ ...a, rel_count: counts.get(a.id) || 0 }))
-        .sort((a: any, b: any) => {
+        .map((a) => ({ ...a, rel_count: counts.get(a.id) || 0 }))
+        .sort((a, b) => {
           if (b.rel_count !== a.rel_count) return b.rel_count - a.rel_count;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         })

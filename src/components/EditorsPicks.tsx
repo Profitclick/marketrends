@@ -35,7 +35,7 @@ export const EditorsPicks = ({ limit = 4 }: Props) => {
         .gte("created_at", since)
         .limit(2000);
       const counts = new Map<string, number>();
-      (rels || []).forEach((r: any) => {
+      (rels || []).forEach((r) => {
         counts.set(r.article_id, (counts.get(r.article_id) || 0) + 1);
       });
       const topIds = [...counts.entries()]
@@ -50,7 +50,7 @@ export const EditorsPicks = ({ limit = 4 }: Props) => {
         .eq("published", true);
       if (cancelled) return;
       const ordered = (arts || [])
-        .map((a: any) => ({ ...a, rel_count: counts.get(a.id) || 0 }))
+        .map((a) => ({ ...a, rel_count: counts.get(a.id) || 0 }))
         .sort((a, b) => b.rel_count - a.rel_count)
         .slice(0, limit);
       setArticles(ordered);

@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { evergreenGuard } from "./evergreen-guard.ts";
+import type { Db } from "./db.ts";
 
 // Rows mirror the current guides / comparison_pages tables.
 const ROWS: Record<string, { slug: string; title: string }[]> = {
@@ -14,27 +15,40 @@ const ROWS: Record<string, { slug: string; title: string }[]> = {
   knowledge_pages: [], research_reports: [], articles: [],
 };
 
-function mockDb(matches: any[] = []) {
+type Row = { slug: string; title: string };
+type Result = { data: unknown };
+type MockBuilder = {
+  select: () => MockBuilder;
+  eq: (c: string, v: unknown) => MockBuilder;
+  ilike: (c: string, v: string) => MockBuilder;
+  limit: () => Promise<Result>;
+  maybeSingle: () => Promise<Result>;
+  insert: () => Promise<Record<string, never>>;
+  upsert: () => Promise<Record<string, never>>;
+  then: (r: (v: Result) => unknown) => unknown;
+};
+
+function mockDb(matches: unknown[] = []): Db & { writes: string[] } {
   const writes: string[] = [];
   const q = (table: string) => {
-    let rows = [...(ROWS[table] || [])];
-    const b: any = {
+    let rows: Row[] = [...(ROWS[table] || [])];
+    const b: MockBuilder = {
       select: () => b,
-      eq: (c: string, v: any) => { rows = rows.filter((r: any) => c === "published" || r[c] === v); return b; },
+      eq: (c: string, v: unknown) => { rows = rows.filter((r) => c === "published" || r[c as keyof Row] === v); return b; },
       ilike: (_c: string, v: string) => { rows = rows.filter((r) => r.title.toLowerCase() === v.toLowerCase()); return b; },
       limit: () => Promise.resolve({ data: rows }),
       maybeSingle: () => Promise.resolve({ data: rows[0] ?? null }),
       insert: () => { writes.push(table); return Promise.resolve({}); },
       upsert: () => { writes.push(table); return Promise.resolve({}); },
-      then: (r: any) => r({ data: rows }),
+      then: (r) => r({ data: rows }),
     };
     return b;
   };
-  return { writes, from: q, rpc: () => Promise.resolve({ data: matches }) };
+  return { writes, from: q, rpc: () => Promise.resolve({ data: matches }) } as unknown as Db & { writes: string[] };
 }
 
-const okEmbed = () => { globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ data: [{ embedding: [0.1] }] })))) as any; };
-const failEmbed = () => { globalThis.fetch = (() => Promise.resolve(new Response("payment required", { status: 402 }))) as any; };
+const okEmbed = () => { globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ data: [{ embedding: [0.1] }] })))) as typeof fetch; };
+const failEmbed = () => { globalThis.fetch = (() => Promise.resolve(new Response("payment required", { status: 402 }))) as typeof fetch; };
 
 Deno.test("existing guide slug -> SKIP_DUPLICATE, no writes", async () => {
   const db = mockDb();

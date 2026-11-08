@@ -33,8 +33,8 @@ export const SemanticRelatedArticles = ({ articleId, variant = "footer", limit =
         .limit(limit);
       if (cancelled) return;
       const list = (data || [])
-        .map((r: any) => r.articles ? { ...r.articles, similarity_score: r.similarity_score } : null)
-        .filter((x: any) => x && x.published);
+        .map((r) => r.articles ? { ...r.articles, similarity_score: r.similarity_score } : null)
+        .filter((x) => x && x.published);
       setItems(list);
     })();
     return () => { cancelled = true; };

@@ -19,8 +19,15 @@ const NO_KEYWORDS = [
   "brønnøysund", "nav ", "kronen", "regjeringen", "stortinget",
 ];
 
-function scoreArticle(a: any, inboundLinks: number) {
-  const sources: any[] = Array.isArray(a.sources) ? a.sources : [];
+type ScoredArticle = {
+  sources?: unknown; entities?: unknown; topics?: unknown; ingress?: string | null;
+  key_takeaways?: unknown; faq?: unknown; title?: string | null; body?: string | null;
+  updated_at?: string | null; published_at?: string | null; created_at?: string | null;
+  [k: string]: unknown;
+};
+
+function scoreArticle(a: ScoredArticle, inboundLinks: number) {
+  const sources: { url?: string }[] = Array.isArray(a.sources) ? a.sources : [];
   const officialCount = sources.filter((s) => {
     const url = (s?.url || "").toLowerCase();
     return OFFICIAL_DOMAINS.some((d) => url.includes(d));
@@ -98,11 +105,11 @@ Deno.serve(async (req) => {
     ]);
 
     const linkCount = new Map<string, number>();
-    (links || []).forEach((l: any) => linkCount.set(l.target_slug, (linkCount.get(l.target_slug) || 0) + 1));
+    (links || []).forEach((l) => linkCount.set(l.target_slug, (linkCount.get(l.target_slug) || 0) + 1));
     const topicCount = new Map<string, number>();
-    (at || []).forEach((r: any) => topicCount.set(r.article_id, (topicCount.get(r.article_id) || 0) + 1));
+    (at || []).forEach((r) => topicCount.set(r.article_id, (topicCount.get(r.article_id) || 0) + 1));
     const entityCount = new Map<string, number>();
-    (ae || []).forEach((r: any) => entityCount.set(r.article_id, (entityCount.get(r.article_id) || 0) + 1));
+    (ae || []).forEach((r) => entityCount.set(r.article_id, (entityCount.get(r.article_id) || 0) + 1));
 
     let updated = 0;
     for (const a of articles || []) {

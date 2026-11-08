@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       .order("opportunity_score", { ascending: false })
       .limit(MAX_PER_RUN);
 
-    const dispatched: any[] = [];
+    const dispatched: { id: string; keyword: string; type: string; endpoint: string | null }[] = [];
     for (const opp of data || []) {
       const type = opp.recommended_content_type;
       let endpoint: string | null = null;
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, run_id: runId, dispatched }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     await finishRun(supabase, runId, "failed", {}, e.message);
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },

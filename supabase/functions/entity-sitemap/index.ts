@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     .order("mention_count", { ascending: false })
     .limit(5000);
 
-  const urls = (data || []).map((e: any) => `
+  const urls = (data || []).map((e) => `
   <url>
     <loc>${SITE}/entity/${e.slug}</loc>
     <lastmod>${new Date(e.updated_at).toISOString()}</lastmod>

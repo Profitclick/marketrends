@@ -27,7 +27,7 @@ export const TopicChips = ({ articleId, className }: Props) => {
         .limit(5);
       if (cancelled) return;
       const list = (data || [])
-        .map((r: any) => r.topics)
+        .map((r) => r.topics)
         .filter(Boolean);
       setTopics(list);
     })();

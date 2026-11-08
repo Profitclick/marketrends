@@ -47,7 +47,7 @@ serve(async (req) => {
         feed_url: `${SITE_URL}/api/export?format=json`,
         description: "Norges ledende kilde for finans, teknologi, krypto og markedsnyheter.",
         language: "nb-NO",
-        items: (articles || []).map((a: any) => ({
+        items: (articles || []).map((a) => ({
           id: a.id,
           url: `${SITE_URL}/${a.slug}`,
           title: a.title,
@@ -68,7 +68,7 @@ serve(async (req) => {
     }
 
     // Default: RSS 2.0 XML
-    const rssItems = (articles || []).map((a: any) => `
+    const rssItems = (articles || []).map((a) => `
     <item>
       <title><![CDATA[${a.title}]]></title>
       <link>${SITE_URL}/${a.slug}</link>

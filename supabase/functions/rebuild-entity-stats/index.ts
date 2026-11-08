@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     }
 
     // Update entity counters
-    const updates: Promise<unknown>[] = [];
+    const updates: PromiseLike<unknown>[] = [];
     for (const [id, c] of counters.entries()) {
       const momentum = c.d7 > 0 ? c.d24 / (c.d7 / 7) : c.d24;
       const trending = c.d24 * 3 + c.d7 + c.d30 * 0.2 + momentum * 2;

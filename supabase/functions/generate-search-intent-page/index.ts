@@ -129,7 +129,7 @@ async function buildInternalLinks(supabase: any, intent: any) {
         .eq("cluster_slug", intent.search_cluster).eq("articles.published", true)
         .order("score", { ascending: false }).limit(4)
     : { data: [] as any[] };
-  const arts = (rows || []).map((r: any) => r.articles);
+  const arts = (rows || []).map((r) => r.articles);
   for (const a of arts) {
     if (!a.slug) continue;
     links.push({
@@ -176,7 +176,7 @@ function buildSchemas(out: any) {
     faqSchema: {
       "@context": "https://schema.org",
       "@type": "FAQPage",
-      mainEntity: (out.faq || []).map((f: any) => ({
+      mainEntity: (out.faq || []).map((f) => ({
         "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a },
       })),
     },
@@ -283,7 +283,7 @@ Deno.serve(async (req) => {
       guarded.set(intent.id, g);
     }
     if (dryRun) {
-      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i: any) => ({ slug: i.target_slug, ...guarded.get(i.id) })) }),
+      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i) => ({ slug: i.target_slug, ...guarded.get(i.id) })) }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
         generated++;
         await new Promise((r) => setTimeout(r, 3000));
 
-      } catch (e: any) {
+      } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
         console.error("intent", intent.target_slug, e);
         errors++;
         await supabase.from("search_intents").update({
@@ -439,7 +439,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ generated, errors, duplicates, merged, rejected, linksCreated, processed: intents.length, decisions }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

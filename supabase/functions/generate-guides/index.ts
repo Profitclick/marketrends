@@ -2,7 +2,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard, type EvergreenAiOutput, type GuardCache, type GuardVerdict } from "../_shared/evergreen-guard.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -25,7 +25,7 @@ const SEED_GUIDES: { title: string; category: string; difficulty: string }[] = [
   { title: "Slik regner du ut SaaS-verdsettelse", category: "saas", difficulty: "advanced" },
 ];
 
-async function aiJson(prompt: string, key: string): Promise<any> {
+async function aiJson(prompt: string, key: string): Promise<EvergreenAiOutput> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -55,9 +55,9 @@ Deno.serve(async (req) => {
 
     const dryRun = body.dry_run === true;
     const allowUpdate = body.allow_update === true;
-    const cache: any = {};
-    const verdicts: any[] = [];
-    const pending: any[] = [];
+    const cache: GuardCache = {};
+    const verdicts: GuardVerdict[] = [];
+    const pending: ((typeof SEED_GUIDES)[number] & { slug: string })[] = [];
     for (const g of SEED_GUIDES.map(g => ({ ...g, slug: slugify(g.title) }))) {
       const input = { type: "guide" as const, slug: g.slug, title: g.title, text: `${g.title}. Kategori: ${g.category}.`, topics: [g.category] };
       const r = await evergreenGuard(supabase, key, input, { allowUpdate, cache });
@@ -102,7 +102,7 @@ Returner JSON:
     return new Response(JSON.stringify({ generated, errors, pending: pending.length, verdicts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -47,10 +47,12 @@ interface Selection {
 
 const EMPTY: Selection = { selected_entities: [], selected_topics: [], new_entities: [], new_topics: [] };
 
+type AiUsage = { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number; credits?: number };
+
 async function selectWithAI(
   article: { title: string; content: string; category: string },
   candidates: Candidate[],
-): Promise<{ selection: Selection; usage: any }> {
+): Promise<{ selection: Selection; usage: AiUsage | null }> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
 
@@ -287,7 +289,7 @@ Deno.serve(async (req) => {
     // relevant entity WITH explicit textual evidence. Everything else is
     // rejected with a logged reason instead of fragmenting the vocabulary.
     const { data: stopRows } = await supabase.from("graph_stopterms").select("term");
-    const stopTerms = new Set((stopRows || []).map((r: any) => String(r.term).toLowerCase()));
+    const stopTerms = new Set((stopRows || []).map((r) => String(r.term).toLowerCase()));
 
     const articleText = `${article.title}\n${article.content || ""}`.toLowerCase();
     const esc = (s: string) => s.replace(/[.^$*+?()[\]{}|\\-]/g, "\\$&");
@@ -331,7 +333,7 @@ Deno.serve(async (req) => {
       let id = hit?.id as string | undefined;
       if (!id) {
         const { data: norm } = await supabase.rpc("find_entity_by_normalized_name", { _name: rawName });
-        id = (norm as any)?.[0]?.id ?? (typeof norm === "string" ? norm : undefined);
+        id = (norm as { id?: string }[] | null)?.[0]?.id ?? (typeof norm === "string" ? norm : undefined);
       }
       if (!id) {
         const { data: aliasHit } = await supabase
@@ -410,7 +412,7 @@ Deno.serve(async (req) => {
       let id = hit?.id as string | undefined;
       if (!id) {
         const { data: norm } = await supabase.rpc("find_topic_by_normalized_name", { _name: nt.name });
-        id = (norm as any)?.[0]?.id ?? (typeof norm === "string" ? norm : undefined);
+        id = (norm as { id?: string }[] | null)?.[0]?.id ?? (typeof norm === "string" ? norm : undefined);
       }
       if (id) {
         tel.canonical_topics_reused++;

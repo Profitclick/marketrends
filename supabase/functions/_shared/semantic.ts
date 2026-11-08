@@ -1,3 +1,4 @@
+import type { Db } from "./db.ts";
 // Shared semantic-duplicate utilities: embeddings, multi-signal similarity, decision logging.
 const GATEWAY_EMBED = "https://ai.gateway.lovable.dev/v1/embeddings";
 export const EMBED_MODEL = "openai/text-embedding-3-small";
@@ -32,7 +33,7 @@ export async function embedBatch(inputs: string[], key: string): Promise<number[
   });
   if (!res.ok) throw new Error(`embed ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const json = await res.json();
-  return (json.data as any[]).sort((a, b) => a.index - b.index).map((d) => d.embedding as number[]);
+  return (json.data as { index: number; embedding: number[] }[]).sort((a, b) => a.index - b.index).map((d) => d.embedding as number[]);
 }
 
 /** Jaccard over meaningful tokens of two headlines. */
@@ -89,10 +90,10 @@ export function compositeScore(s: DupeSignals) {
 export const DUPLICATE_THRESHOLD = 0.90;
 export const MERGE_THRESHOLD = 0.86;
 
-export async function logDecision(supabase: any, row: {
+export async function logDecision(supabase: Db, row: {
   candidate_type: string; candidate_ref: string; candidate_title?: string | null;
   decision: string; match_type?: string | null; match_ref?: string | null;
-  match_title?: string | null; similarity?: number | null; signals?: any; action_taken?: string | null;
+  match_title?: string | null; similarity?: number | null; signals?: unknown; action_taken?: string | null;
 }) {
   try {
     await supabase.from("duplicate_decisions").insert({ signals: {}, ...row });

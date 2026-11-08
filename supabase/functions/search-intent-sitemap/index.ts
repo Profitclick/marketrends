@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
     .order("priority_score", { ascending: false })
     .limit(5000);
 
-  const urls = (data || []).map((r: any) => `
+  const urls = (data || []).map((r) => `
   <url>
     <loc>${BASE}/intent/${r.target_slug}</loc>
     <lastmod>${new Date(r.updated_at || Date.now()).toISOString()}</lastmod>
