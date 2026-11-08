@@ -56,7 +56,7 @@ async function titleIndex(supabase: any) {
 
 export async function evergreenGuard(
   supabase: any, apiKey: string, c: GuardInput,
-  opts: { allowUpdate?: boolean; cache?: { titles?: any[] } } = {},
+  opts: { allowUpdate?: boolean; noAI?: boolean; cache?: { titles?: any[] } } = {},
 ): Promise<GuardResult> {
   const table = TABLE[c.type];
 
@@ -90,6 +90,7 @@ export async function evergreenGuard(
   if (art?.length) return { decision: "REVIEW_REQUIRED", barrier: "normalized_title", reason: "identical title as published article", match: { type: "article", ref: art[0].slug, title: art[0].title } };
 
   // 4. Semantic
+  if (opts.noAI) return { decision: "REVIEW_REQUIRED", barrier: "semantic_not_requested", reason: "No cached query embedding supplied; semantic coverage cannot be concluded without an AI request", match: null };
   const cand: Candidate = { type: c.type, ref: c.slug, title: c.title, text: c.text || "", entities: c.entities, topics: c.topics };
   let v;
   try {
