@@ -6,6 +6,7 @@
 - [x] Correct stale Cloudflare architecture rule; current .env and 4 available historical versions contain only public/client-safe configuration. No secret rotation or environment changes.
 - [x] Run 36 targeted tests successfully; automatic preview build OK and clean diff check. Return foundation report and stop.
 - [ ] Obtain separate frontend typecheck evidence: automatic build logs report build OK only; manual project builds/typechecks are prohibited in this environment, so this requirement remains unverified.
+- [x] Foundation audit 8 Nov 2026: removed synthetic FAQPage from KeyTakeaways (question was invented, not visible Q&A); added `typecheck` and `test` npm scripts; marked retired apex Worker notes HISTORICAL. Tests 25/26 (admin RSS test needs admin session); eslint clean on touched paths. Typecheck script added but not run here (manual typecheck prohibited in this environment).
 
 ## Phase 7D.1
 - [x] Normalize HTML-encoded article image URLs at ingestion and repair affected existing URLs without generation: 897 repaired, 0 encoded URLs remain; ingestion deployed.
@@ -22,9 +23,9 @@
   - workers.dev endpoint of `marketrends-news-sitemap`: HTTP 200, valid XML, 80 URLs, `Cache-Control: public, max-age=0, s-maxage=600`, `X-Marketrends-News-Count: 80`, `X-Marketrends-Sitemap-Source: cloudflare-worker`.
   - Canonical `https://marketrends.no/sitemap-news.xml`: still Lovable static output — 84 URLs, `X-Deployment-Id` present, no Worker headers.
   - Public DNS resolves via Cloudflare anycast; NS `chip.ns.cloudflare.com` / `raquel.ns.cloudflare.com`.
-  - Worker route exists and apex is proxied, but even an isolated probe route did not execute. Broad route test rolled back; current route is narrow: `https://marketrends.no/sitemap-news.xml*`.
+  - HISTORICAL / RETIRED (do not restore): Worker route existed and apex was proxied, but even an isolated probe route did not execute. Broad route test rolled back; current route is narrow: `https://marketrends.no/sitemap-news.xml*`.
   - Worker source hardened externally (request-lifecycle cache write, diagnostic header, non-sitemap passthrough guard).
-  - Former Worker Route execution issue superseded externally by apex Worker Custom Domain delivery. Other apex paths use `resolveOverride='lovable-origin.marketrends.no'`; retain that hostname. Temporary edge-probe domain removed externally. No Cloudflare changes made in this closure.
+  - HISTORICAL / RETIRED (do not restore): apex Worker Custom Domain with `resolveOverride='lovable-origin.marketrends.no'` was rolled back after Cloudflare Error 1000. Current state: apex/www DNS-only A 185.158.133.1 direct to Lovable; Worker `marketrends-news-sitemap` isolated to custom domain news-sitemap.marketrends.no serving /sitemap-news.xml; no apex Worker Routes. Temporary edge-probe domain removed externally. No Cloudflare changes made in this closure.
   - Canonical closure gate passed at the fixed timestamp above; AGENTS.md updated only after reconciliation. GSC remains OBSERVATION_ONLY; no Phase 7D, generation, scheduler, database or deployment changes.
 
 ### Architecture documentation
