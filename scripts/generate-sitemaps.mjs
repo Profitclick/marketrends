@@ -1,17 +1,16 @@
 // Builds all public sitemaps into the build output from published database rows.
 import fs from "node:fs";
 import path from "node:path";
+import { restFetch } from "./rest-fetch.mjs";
 import { dedupe, shard, urlset, newsFilter, newsset, sitemapIndex, VERTICALS, PUBLIC_STATIC, dedupeIntents, NEWS_SHARD_SIZE, NEWS_SITEMAP_URL } from "./sitemap-lib.mjs";
 
 async function fetchAll(base, key, table, select, filter = "published=eq.true") {
   const rows = [];
   const page = 1000;
   for (let from = 0; ; from += page) {
-    const res = await fetch(`${base}/rest/v1/${table}?select=${select}&${filter}&order=created_at.desc`, {
+    const batch = await restFetch(`${base}/rest/v1/${table}?select=${select}&${filter}&order=created_at.desc`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + page - 1}` },
-    });
-    if (!res.ok) throw new Error(`${table}: HTTP ${res.status}`);
-    const batch = await res.json();
+    }, { label: table });
     rows.push(...batch);
     if (batch.length < page) break;
   }
