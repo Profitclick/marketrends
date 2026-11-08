@@ -117,7 +117,7 @@ export function hubPage({ prefix, row, label, articles = [] }) {
   const desc = row.meta_description || row.summary || row.description || `${label}: ${name} på Marketrends.no.`;
   return {
     path: `${prefix}${row.slug}`, title: row.meta_title || `${name} | Marketrends.no`, h1: name, description: desc,
-    intro: [row.summary || row.description, ...(row.content ? paragraphs(row.content, 4) : [])].filter(Boolean),
+    intro: [row.summary || row.description || desc, ...(row.content ? paragraphs(row.content, 4) : [])].filter(Boolean),
     links: articles.map((a) => ({ href: `/${a.slug}`, text: a.title })),
     schemas: [breadcrumb([{ name: "Forside", path: "/" }, { name }])],
   };
