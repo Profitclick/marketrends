@@ -42,7 +42,9 @@ export const newsset = (articles) =>
     .join("\n") +
   `\n</urlset>\n`;
 
+// Dynamic Google News sitemap (Cloudflare Worker Custom Domain); static /sitemap-news.xml is fallback only.
+export const NEWS_SITEMAP_URL = "https://news-sitemap.marketrends.no/sitemap-news.xml";
 export const sitemapIndex = (files) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-  files.map((f) => `  <sitemap><loc>${esc(`${SITE_URL}/${f}`)}</loc></sitemap>`).join("\n") +
+  files.map((f) => `  <sitemap><loc>${esc(/^https:\/\//.test(f) ? f : `${SITE_URL}/${f}`)}</loc></sitemap>`).join("\n") +
   `\n</sitemapindex>\n`;
