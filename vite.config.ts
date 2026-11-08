@@ -16,14 +16,10 @@ const sitemapPlugin = (env: Record<string, string>) => ({
     } catch (e) {
       console.warn("[sitemaps] generation failed:", (e as Error).message);
     }
-    // Route-specific static HTML for public routes; client React boots normally on top.
-    try {
-      const p = await prerender(path.resolve(__dirname, "dist"), env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
-      console.log(`[prerender] ${p.written} routes written, ${p.articles} articles, ${p.failed.length} failed`);
-      p.failed.slice(0, 20).forEach((f) => console.warn("[prerender] FAILED", f));
-    } catch (e) {
-      console.warn("[prerender] aborted, SPA shell only:", (e as Error).message);
-    }
+    // Route-specific static HTML for every ordinary-sitemap route. Fails the build on any failure or parity gap
+    // so a wrong homepage fallback canonical is never shipped for an expected SEO route.
+    const p = await prerender(path.resolve(__dirname, "dist"), env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
+    console.log(`[prerender] ${p.written} routes, ${p.articles} articles; sitemap ${p.sitemap}, missing ${p.missing}, unexpected ${p.unexpected}`);
   },
 });
 
