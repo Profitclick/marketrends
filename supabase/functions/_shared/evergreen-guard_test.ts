@@ -41,6 +41,18 @@ Deno.test("existing guide slug -> SKIP_DUPLICATE, no writes", async () => {
   const r = await evergreenGuard(db, "k", { type: "guide", slug: "slik-lanserer-du-en-saas", title: "Slik lanserer du en SaaS" });
   assertEquals(r.decision, "SKIP_DUPLICATE"); assertEquals(r.barrier, "slug"); assertEquals(db.writes.length, 0);
 });
+Deno.test("analysis noAI mode makes zero embedding calls and fails closed", async () => {
+  let calls = 0;
+  const original = globalThis.fetch;
+  globalThis.fetch = (() => { calls++; throw new Error("AI forbidden"); }) as typeof fetch;
+  try {
+    const db = mockDb();
+    const r = await evergreenGuard(db, "", { type: "knowledge", slug: "new-pillar", title: "Unknown pillar" }, { noAI: true });
+    assertEquals(r.decision, "REVIEW_REQUIRED");
+    assertEquals(calls, 0);
+    assertEquals(db.writes.length, 0);
+  } finally { globalThis.fetch = original; }
+});
 Deno.test("existing slug with allow_update -> UPDATE_EXISTING", async () => {
   const r = await evergreenGuard(mockDb(), "k", { type: "guide", slug: "slik-lanserer-du-en-saas", title: "x" }, { allowUpdate: true });
   assertEquals(r.decision, "UPDATE_EXISTING");
