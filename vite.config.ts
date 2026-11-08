@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { generateSitemaps } from "./scripts/generate-sitemaps.mjs";
+import { prerender } from "./scripts/prerender.mjs";
 
 // Public sitemaps are generated into the build output so they are served from https://marketrends.no.
 const sitemapPlugin = (env: Record<string, string>) => ({
@@ -14,6 +15,14 @@ const sitemapPlugin = (env: Record<string, string>) => ({
       console.log(`[sitemaps] ${r.files.length} files, ${r.articles} articles, ${r.news} news`);
     } catch (e) {
       console.warn("[sitemaps] generation failed:", (e as Error).message);
+    }
+    // Route-specific static HTML for public routes; client React boots normally on top.
+    try {
+      const p = await prerender(path.resolve(__dirname, "dist"), env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
+      console.log(`[prerender] ${p.written} routes written, ${p.articles} articles, ${p.failed.length} failed`);
+      p.failed.slice(0, 20).forEach((f) => console.warn("[prerender] FAILED", f));
+    } catch (e) {
+      console.warn("[prerender] aborted, SPA shell only:", (e as Error).message);
     }
   },
 });
