@@ -1,10 +1,11 @@
 # Database recovery
 
 ## Phase 7D.2
-- [ ] Set only the existing hourly ingestion job to fetch_only and verify a real scheduler-authenticated run with zero AI calls and article writes.
-- [ ] Restrict only start_pipeline_run and complete_pipeline_run to required internal identities; verify denied public access and working internal tracking.
-- [ ] Correct the stale Cloudflare architecture rule, audit tracked environment variable/history hygiene without exposing values, and run targeted regressions.
-- [ ] Return the required foundation report; do not proceed to another phase.
+- [x] Set only hourly job 6 to fetch_only, preserving 0 * * * *; scheduled-equivalent request 12950 succeeded, 7 feeds / 35 items, zero AI calls, creations or publications; all 7 last_fetched values advanced.
+- [x] Migration 0012 restricts only start_pipeline_run/complete_pipeline_run to service_role and owner. Anonymous HTTP calls denied (42501); authenticated EXECUTE=false; existing service-role run tracking succeeded. Non-admin session test unavailable without an identified test account.
+- [x] Correct stale Cloudflare architecture rule; current .env and 4 available historical versions contain only public/client-safe configuration. No secret rotation or environment changes.
+- [x] Run 36 targeted tests successfully; automatic preview build OK and clean diff check. Return foundation report and stop.
+- [ ] Obtain separate frontend typecheck evidence: automatic build logs report build OK only; manual project builds/typechecks are prohibited in this environment, so this requirement remains unverified.
 
 ## Phase 7D.1
 - [x] Normalize HTML-encoded article image URLs at ingestion and repair affected existing URLs without generation: 897 repaired, 0 encoded URLs remain; ingestion deployed.
@@ -41,6 +42,6 @@
 - [x] Repair authenticated news scheduling and verify a live no-AI collection run (fetch_only, 7 feeds, 35 items, 0 AI calls).
 - [x] Seed canonical vocabulary + cluster seeds on the live database; deterministic pass over all published articles; rebuild clusters, internal links, authority.
 - [ ] Restore historical records from the previous database — requires access to its exported records.
-- [ ] Switch scheduler from fetch_only to full processing — waits on AI credits and explicit approval.
+- [ ] Switch scheduler from fetch_only to full processing — forbidden until explicit bounded-publishing approval; available AI credits alone are insufficient.
 - [ ] P1 AI enrichment of hybrid_pending/ai_required articles — waits on AI credits.
 - [x] Connect marketrends.no — primary domain connected and serving the published site.
