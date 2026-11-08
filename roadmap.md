@@ -1,5 +1,11 @@
 # Database recovery
 
+## Phase 7D.1
+- [ ] Normalize HTML-encoded article image URLs at ingestion and repair affected existing URLs without generation.
+- [ ] Verify dashboard loads only on demand; correct loading if needed.
+- [ ] Remove duplicate sitewide JSON-LD while retaining route-specific schemas.
+- [ ] Run targeted tests and browser checks; leave GSC and schedules unchanged.
+
 ## Phase 7C.1
 - [x] Reconcile the live news sitemap against exact eligible database slugs at a fixed audit timestamp.
 - [x] Verify existing structured-data cleanup is already live; request republishing after fixing both critical access findings.
