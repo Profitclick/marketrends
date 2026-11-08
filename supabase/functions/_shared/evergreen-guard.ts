@@ -16,12 +16,12 @@ import { evaluateDuplicate, recordVerdict, type Candidate } from "./dupe.ts";
 import { slugify, DUPLICATE_THRESHOLD, logDecision } from "./semantic.ts";
 
 export type EvergreenDecision = "CREATE_NEW" | "UPDATE_EXISTING" | "SKIP_DUPLICATE" | "REVIEW_REQUIRED";
-export type EvergreenType = "knowledge" | "guide" | "comparison";
+export type EvergreenType = "knowledge" | "guide" | "comparison" | "intent";
 
 export const SEMANTIC_COSINE_THRESHOLD = 0.86;
 
 const TABLE: Record<EvergreenType, string> = {
-  knowledge: "knowledge_pages", guide: "guides", comparison: "comparison_pages",
+  knowledge: "knowledge_pages", guide: "guides", comparison: "comparison_pages", intent: "search_intents",
 };
 
 export type GuardInput = {
@@ -60,8 +60,8 @@ export async function evergreenGuard(
 ): Promise<GuardResult> {
   const table = TABLE[c.type];
 
-  // 1. Exact slug
-  const { data: own } = await supabase.from(table).select("slug,title").eq("slug", c.slug).maybeSingle();
+  // 1. Exact slug (intents: the candidate row itself owns target_slug; cross-table collisions are checked by the caller)
+  const { data: own } = c.type === "intent" ? { data: null } : await supabase.from(table).select("slug,title").eq("slug", c.slug).maybeSingle();
   if (own) {
     return {
       decision: opts.allowUpdate ? "UPDATE_EXISTING" : "SKIP_DUPLICATE",
@@ -71,7 +71,7 @@ export async function evergreenGuard(
   }
 
   // 2. Alternate slugs (mirrored comparison)
-  for (const alt of c.altSlugs || []) {
+  for (const alt of c.type === "intent" ? [] : c.altSlugs || []) {
     const { data: m } = await supabase.from(table).select("slug,title").eq("slug", alt).maybeSingle();
     if (m) return { decision: "SKIP_DUPLICATE", barrier: "mirror_slug", reason: "same pair exists in reverse order", match: { type: c.type, ref: m.slug, title: m.title } };
   }

@@ -257,6 +257,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Number(body.limit) || 3, 10);
     const ids: string[] | undefined = body.ids;
     const force = !!body.force;
+    const dryRun = !!body.dry_run;
 
     let q = supabase.from("search_intents").select("*").in("content_status", ["pending", "queued"])
       .order("priority_score", { ascending: false }).limit(limit);
@@ -265,6 +266,21 @@ Deno.serve(async (req) => {
     const { data: intents } = await q;
     if (!intents?.length) {
       return new Response(JSON.stringify({ generated: 0, message: "Nothing to generate" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Shared evergreen guard before any AI generation; dry_run returns verdicts with no writes.
+    const cache: { titles?: any[] } = {};
+    const guarded = new Map<string, any>();
+    for (const intent of intents) {
+      const collision = await slugCollision(supabase, intent.target_slug);
+      const g = collision
+        ? { decision: "SKIP_DUPLICATE", barrier: "slug_collision", reason: "slug exists in another table", match: { type: collision.split(":")[0], ref: collision.split(":")[1], title: collision } }
+        : await evergreenGuard(supabase, key, { type: "intent", slug: intent.target_slug, title: intent.keyword, text: intent.keyword, topics: [intent.search_cluster].filter(Boolean) }, { cache });
+      guarded.set(intent.id, g);
+    }
+    if (dryRun) {
+      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i: any) => ({ slug: i.target_slug, ...guarded.get(i.id) })) }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -289,6 +305,17 @@ Deno.serve(async (req) => {
           }, "skipped-slug-collision");
           duplicates++;
           decisions.push({ intent: intent.keyword, decision: "duplicate", match: collision });
+          continue;
+        }
+
+        const g = guarded.get(intent.id);
+        if (!force && g.decision !== "CREATE_NEW") {
+          await logGuard(supabase, { type: "intent", slug: intent.target_slug, title: intent.keyword }, g, "blocked-pre-generation");
+          if (g.decision === "SKIP_DUPLICATE") {
+            await supabase.from("search_intents").update({ content_status: "skipped", duplicate_of: `${g.match?.type}:${g.match?.ref}` }).eq("id", intent.id);
+            duplicates++;
+          }
+          decisions.push({ intent: intent.keyword, decision: g.decision, barrier: g.barrier, match: g.match?.ref ?? null });
           continue;
         }
 
