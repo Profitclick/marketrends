@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { renderRoute, articlePage, listPage, hubPage, routeFile, parity, CATEGORIES, categorySlug } from "./prerender-lib.mjs";
-import { dedupe } from "./sitemap-lib.mjs";
+import { dedupe, dedupeIntents } from "./sitemap-lib.mjs";
 
 const PAGE = 500; // batched reads keep memory bounded per request
 
