@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { test, expect } from "bun:test";
 import { renderRoute, articlePage } from "./prerender-lib.mjs";
 
 const tpl = `<html><head><title>Generic</title><meta name="description" content="g"><meta property="og:url" content="https://marketrends.no/" /></head><body><div id="root"></div></body></html>`;
