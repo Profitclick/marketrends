@@ -22,5 +22,5 @@ Deno.serve(async(req)=>{
   }
   const after=await db.rpc('phase7c_link_audit');if(after.error)throw after.error;
   return json({ok:true,processed_articles:processed,progress,before:before.data,after:after.data,reference_links:references.data});
- } catch(e){return json({error:e instanceof Error?e.message:String(e)},500);}
+ } catch(e){return json({error:e instanceof Error?e.message:typeof e==='object'&&e!==null?JSON.stringify(e):String(e)},500);}
 });
