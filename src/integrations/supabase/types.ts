@@ -1096,6 +1096,132 @@ export type Database = {
         }
         Relationships: []
       }
+      gsc_daily_metrics: {
+        Row: {
+          appearance: string
+          canonical_url: string
+          clicks: number
+          country: string
+          ctr: number
+          dataset: string
+          date: string
+          device: string
+          id: number
+          impressions: number
+          ingested_at: string
+          page: string
+          position: number
+          query: string
+          search_type: string
+          site_url: string
+        }
+        Insert: {
+          appearance?: string
+          canonical_url: string
+          clicks: number
+          country?: string
+          ctr: number
+          dataset: string
+          date: string
+          device?: string
+          id?: never
+          impressions: number
+          ingested_at?: string
+          page: string
+          position: number
+          query?: string
+          search_type?: string
+          site_url: string
+        }
+        Update: {
+          appearance?: string
+          canonical_url?: string
+          clicks?: number
+          country?: string
+          ctr?: number
+          dataset?: string
+          date?: string
+          device?: string
+          id?: never
+          impressions?: number
+          ingested_at?: string
+          page?: string
+          position?: number
+          query?: string
+          search_type?: string
+          site_url?: string
+        }
+        Relationships: []
+      }
+      gsc_ingestion_days: {
+        Row: {
+          dataset: string
+          date: string
+          ingested_at: string
+          row_count: number
+          site_url: string
+          status: string
+        }
+        Insert: {
+          dataset: string
+          date: string
+          ingested_at?: string
+          row_count: number
+          site_url: string
+          status: string
+        }
+        Update: {
+          dataset?: string
+          date?: string
+          ingested_at?: string
+          row_count?: number
+          site_url?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      gsc_sync_state: {
+        Row: {
+          error: string | null
+          first_available_date: string | null
+          id: boolean
+          last_completed_at: string | null
+          last_started_at: string | null
+          latest_complete_date: string | null
+          retry_after: string | null
+          selected_site_url: string | null
+          snapshot: Json
+          status: string
+          target_url: string
+        }
+        Insert: {
+          error?: string | null
+          first_available_date?: string | null
+          id?: boolean
+          last_completed_at?: string | null
+          last_started_at?: string | null
+          latest_complete_date?: string | null
+          retry_after?: string | null
+          selected_site_url?: string | null
+          snapshot?: Json
+          status?: string
+          target_url?: string
+        }
+        Update: {
+          error?: string | null
+          first_available_date?: string | null
+          id?: boolean
+          last_completed_at?: string | null
+          last_started_at?: string | null
+          latest_complete_date?: string | null
+          retry_after?: string | null
+          selected_site_url?: string | null
+          snapshot?: Json
+          status?: string
+          target_url?: string
+        }
+        Relationships: []
+      }
       guides: {
         Row: {
           category: string | null
@@ -1156,6 +1282,56 @@ export type Database = {
           summary?: string | null
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      internal_link_queue: {
+        Row: {
+          article_id: string
+          queued_at: string
+        }
+        Insert: {
+          article_id: string
+          queued_at?: string
+        }
+        Update: {
+          article_id?: string
+          queued_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_link_queue_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: true
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_link_runs: {
+        Row: {
+          complete: boolean
+          completed_at: string | null
+          cursor: string | null
+          id: boolean
+          processed: number
+          started_at: string
+        }
+        Insert: {
+          complete?: boolean
+          completed_at?: string | null
+          cursor?: string | null
+          id?: boolean
+          processed?: number
+          started_at?: string
+        }
+        Update: {
+          complete?: boolean
+          completed_at?: string | null
+          cursor?: string | null
+          id?: boolean
+          processed?: number
+          started_at?: string
         }
         Relationships: []
       }
@@ -1705,6 +1881,33 @@ export type Database = {
           },
         ]
       }
+      search_performance_signals: {
+        Row: {
+          canonical_url: string
+          content_type: string
+          mapping: Json
+          metrics: Json
+          recommendation: Json
+          refreshed_at: string
+        }
+        Insert: {
+          canonical_url: string
+          content_type: string
+          mapping?: Json
+          metrics?: Json
+          recommendation?: Json
+          refreshed_at?: string
+        }
+        Update: {
+          canonical_url?: string
+          content_type?: string
+          mapping?: Json
+          metrics?: Json
+          recommendation?: Json
+          refreshed_at?: string
+        }
+        Relationships: []
+      }
       source_library: {
         Row: {
           authority_score: number | null
@@ -2017,6 +2220,22 @@ export type Database = {
         Returns: Json
       }
       normalize_node_name: { Args: { s: string }; Returns: string }
+      phase7c_link_audit: { Args: never; Returns: Json }
+      phase7c_link_batch: {
+        Args: { p_limit?: number; p_reset?: boolean }
+        Returns: Json
+      }
+      phase7c_map_urls: { Args: { p_urls: string[] }; Returns: Json }
+      phase7c_replace_gsc_day: {
+        Args: {
+          p_dataset: string
+          p_date: string
+          p_rows: Json
+          p_site: string
+          p_status: string
+        }
+        Returns: undefined
+      }
       preview_article_clusters: {
         Args: never
         Returns: {

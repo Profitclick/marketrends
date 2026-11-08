@@ -17,6 +17,7 @@ import { QualityMonitorPanel } from "@/components/QualityMonitorPanel";
 import { ArchiveRepairPanel } from "@/components/ArchiveRepairPanel";
 
 import { SearchIntentPanel } from "@/components/SearchIntentPanel";
+import { GSCMeasuredPanel } from "@/components/GSCMeasuredPanel";
 import { toast } from "sonner";
 
 const Dashboard = () => {
@@ -374,6 +375,7 @@ const Dashboard = () => {
           <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
             <TabsList className="inline-flex w-auto min-w-full md:w-full flex-nowrap md:flex-wrap justify-start h-auto">
               <TabsTrigger value="stats"><BarChart3 className="h-4 w-4 mr-1.5" aria-hidden="true" />Statistikk</TabsTrigger>
+              <TabsTrigger value="gsc"><BarChart3 className="h-4 w-4 mr-1.5" aria-hidden="true" />Google-målinger</TabsTrigger>
               <TabsTrigger value="opportunities"><Compass className="h-4 w-4 mr-1.5" aria-hidden="true" />Opportunities</TabsTrigger>
               <TabsTrigger value="engagement"><TrendingUp className="h-4 w-4 mr-1.5" aria-hidden="true" />Engagement</TabsTrigger>
               <TabsTrigger value="heatmap"><Network className="h-4 w-4 mr-1.5" aria-hidden="true" />Heatmap</TabsTrigger>
@@ -391,6 +393,7 @@ const Dashboard = () => {
           <TabsContent value="stats" className="space-y-4">
             <PublishingStats />
           </TabsContent>
+          <TabsContent value="gsc"><GSCMeasuredPanel /></TabsContent>
           <TabsContent value="opportunities" className="space-y-4">
             <OpportunityCenter />
           </TabsContent>
