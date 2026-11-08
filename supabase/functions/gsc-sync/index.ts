@@ -2,6 +2,8 @@ import {corsHeaders} from 'npm:@supabase/supabase-js@2/cors';
 import {z} from 'npm:zod@3';
 import {requireAdmin,unauthorized} from '../_shared/admin-auth.ts';
 import {canonicalUrl,covers,TARGET,aggregate,recommend, type Metric} from '../_shared/gsc-metrics.ts';
+import {evergreenGuard} from '../_shared/evergreen-guard.ts';
+import {pillarTerritories} from '../_shared/gsc-pillars.ts';
 const schema=z.object({action:z.enum(['sync','read','select']).default('read'),site_url:z.string().max(2048).optional(),days:z.number().int().min(1).max(90).default(7)});
 const gateway='https://connector-gateway.lovable.dev/google_search_console';
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
@@ -81,7 +83,16 @@ Deno.serve(async(req)=>{
    clusterMetrics[slug]={...aggregate(raw.filter(r=>members.has(r.canonical_url)) as Metric[],endDate),pages:members.size};
   }
   const available=raw.map(r=>r.date).sort();
-  const snapshot={state:available.length&&completeDays>=56?'MEASURED':'OBSERVATION_ONLY',complete_ingestion_days:completeDays,property:site,totals:available.length?aggregate(raw as Metric[],endDate):null,clusters:available.length?clusterMetrics:null,pages_with_impressions:signals.filter(s=>s.metrics.w90.impressions>0).length,ai_visibility:'NOT_EXPOSED_IN_THIS_WEB_DATASET',limitations:'Search Analytics returns top rows, omits anonymized queries; page and query datasets must never be summed. No AI visibility inferred. Empty results are not proof of no indexing.',synthetic_rows:0,auto_publishing:false};
+  const pillars:any={};const cache={};
+  for(const [cluster,titles] of Object.entries(pillarTerritories)) {
+   pillars[cluster]=[];
+   for(const title of titles){
+    const slug=title.toLowerCase().replace(/[^a-zæøå0-9]+/g,'-').replace(/^-|-$/g,'');
+    const coverage=await evergreenGuard(db,'',{type:'knowledge',slug,title},{noAI:true,cache});
+    pillars[cluster].push({title,status:'INSUFFICIENT_DATA',coverage,reason:'No sufficient measured query-intent evidence; existing match is not proof of a strong pillar',generated:false});
+   }
+  }
+  const snapshot={state:available.length&&completeDays>=56?'MEASURED':'OBSERVATION_ONLY',complete_ingestion_days:completeDays,property:site,totals:available.length?aggregate(raw as Metric[],endDate):null,clusters:available.length?clusterMetrics:null,pillars,pages_with_impressions:signals.filter(s=>s.metrics.w90.impressions>0).length,ai_visibility:'NOT_EXPOSED_IN_THIS_WEB_DATASET',limitations:'Search Analytics returns top rows, omits anonymized queries; page and query datasets must never be summed. No AI visibility inferred. Empty results are not proof of no indexing.',synthetic_rows:0,auto_publishing:false};
   checked(await db.from('gsc_sync_state').upsert({id:true,selected_site_url:site,status:snapshot.state,last_completed_at:new Date().toISOString(),latest_complete_date:available.at(-1)??null,first_available_date:available[0]??null,error:null,retry_after:null,snapshot}));
   return json({ok:true,rows_ingested:rowsIngested,snapshot});
  }catch(e){

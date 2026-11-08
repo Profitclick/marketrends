@@ -57,6 +57,20 @@
       "when": 1794114569809,
       "tag": "0007_phase7c_atomic_metrics_replacement",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794114926308,
+      "tag": "0008_phase7c_reference_link_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794115011107,
+      "tag": "0009_phase7c_reference_score_column",
+      "breakpoints": true
     }
   ]
 }
