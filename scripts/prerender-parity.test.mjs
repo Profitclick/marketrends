@@ -40,6 +40,7 @@ test("parity fails closed without an article sitemap", () => {
 });
 
 test("canonical guard rejects non-canonical hosts", () => {
-  for (const u of ["https://marketrends.lovable.app/x", "https://x.workers.dev/", "https://jsf.supabase.co/x", "https://marketrends.no/ed73ad9f"]) expect(isCanonicalSafe(u)).toBe(false);
+  for (const u of ["https://marketrends.lovable.app/x", "https://x.workers.dev/", "https://jsf.supabase.co/x", "https://marketrends.no/ed73ad9f-43df-4ba1"]) expect(isCanonicalSafe(u)).toBe(false);
   expect(isCanonicalSafe("https://marketrends.no/ai")).toBe(true);
+  expect(isCanonicalSafe("https://marketrends.no/supabase-verdsettes-til-10-milliarder")).toBe(true);
 });

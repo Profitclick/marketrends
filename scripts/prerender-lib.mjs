@@ -26,7 +26,8 @@ export function breadcrumb(items) {
 }
 
 export function isCanonicalSafe(url) {
-  return url.startsWith(SITE + "/") && !/lovable\.app|supabase|workers\.dev|ed73ad9f/.test(url);
+  // Host must be the canonical site; article slugs may legitimately mention companies (e.g. "supabase").
+  try { const u = new URL(url); return u.origin === SITE && !url.includes("ed73ad9f-43df"); } catch { return false; }
 }
 
 // Build head + body for a route description. page = { path, title, description, h1, intro[], links[{href,text}], schemas[], type, image }
