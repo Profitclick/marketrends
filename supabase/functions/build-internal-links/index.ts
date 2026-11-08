@@ -13,6 +13,7 @@ Deno.serve(async(req)=>{
   const input=parsed.data;
   const before=await db.rpc('phase7c_link_audit');if(before.error)throw before.error;
   if(input.dry_run)return json({ok:true,dry_run:true,before:before.data});
+  const references=await db.rpc('phase7c_reference_links');if(references.error)throw references.error;
   let progress:any={};let processed=0;
   for(let i=0;i<input.batches;i++){
    const result=await db.rpc('phase7c_link_batch',{p_limit:input.limit,p_reset:i===0&&input.reset});
@@ -20,6 +21,6 @@ Deno.serve(async(req)=>{
    if(progress.processed_batch===0 || (progress.complete && progress.queued===0))break;
   }
   const after=await db.rpc('phase7c_link_audit');if(after.error)throw after.error;
-  return json({ok:true,processed_articles:processed,progress,before:before.data,after:after.data,non_article_links:'Existing topic/entity/cluster links preserved; separate reference reconciliation pending'});
+  return json({ok:true,processed_articles:processed,progress,before:before.data,after:after.data,reference_links:references.data});
  } catch(e){return json({error:e instanceof Error?e.message:String(e)},500);}
 });
