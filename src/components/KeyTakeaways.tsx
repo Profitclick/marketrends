@@ -61,29 +61,8 @@ export const KeyTakeaways = ({ content, metaDescription, title }: Props) => {
 
   if (!tldr && bullets.length < 2) return null;
 
-  // AEO: emit a lightweight FAQPage schema so AI engines can lift the takeaways
-  const faqSchema = bullets.length >= 2 ? {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: `Hva er det viktigste å vite om ${title}?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: (tldr ? `${tldr} ` : "") + bullets.join(" "),
-        },
-      },
-    ],
-  } : null;
-
   return (
     <>
-      {faqSchema && (
-        <Helmet>
-          <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
-        </Helmet>
-      )}
       <aside
         className="my-8 border-y-2 border-foreground py-5"
         aria-label="Kort fortalt"
