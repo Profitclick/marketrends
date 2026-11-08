@@ -4,7 +4,15 @@
 - [x] Reconcile the live news sitemap against exact eligible database slugs at a fixed audit timestamp.
 - [x] Verify existing structured-data cleanup is already live; request republishing after fixing both critical access findings.
 - [x] Restrict feed mutations to admins and public link reads to valid public endpoints; verify admin UI, 16 tests and fresh scan.
-- [ ] Confirm automatic canonical news-sitemap delivery — Phase 7C.2 closure snapshot (2026-11-08T09:41:18.837488Z): 80 published articles eligible in the inclusive rolling 48-hour window. External verification supplied by the user confirms Workers Scripts read access, Worker `marketrends-news-sitemap`, active deployment at 100%, its canonical route, and proxied apex. External remediation is ongoing; no Cloudflare mutations requested. EXTERNAL_LIVE_VERIFICATION_REQUIRED: reconcile live output at a fixed timestamp and require Missing=0, Stale=0, Duplicates=0 before closing Phase 7C.2 or Phase 7C. GSC remains OBSERVATION_ONLY.
+- [ ] Confirm automatic canonical news-sitemap delivery (Phase 7C.2 OPEN) — Blocker: WORKER_ROUTE_EXECUTION_NOT_APPLYING_ON_CANONICAL_HOST.
+  - DB snapshot 2026-11-08T09:41:18.837488Z: 80 eligible published articles in the inclusive rolling 48-hour window.
+  - workers.dev endpoint of `marketrends-news-sitemap`: HTTP 200, valid XML, 80 URLs, `Cache-Control: public, max-age=0, s-maxage=600`, `X-Marketrends-News-Count: 80`, `X-Marketrends-Sitemap-Source: cloudflare-worker`.
+  - Canonical `https://marketrends.no/sitemap-news.xml`: still Lovable static output — 84 URLs, `X-Deployment-Id` present, no Worker headers.
+  - Public DNS resolves via Cloudflare anycast; NS `chip.ns.cloudflare.com` / `raquel.ns.cloudflare.com`.
+  - Worker route exists and apex is proxied, but even an isolated probe route did not execute. Broad route test rolled back; current route is narrow: `https://marketrends.no/sitemap-news.xml*`.
+  - Worker source hardened externally (request-lifecycle cache write, diagnostic header, non-sitemap passthrough guard).
+  - Ruled out as cause: Worker code, DB query, token permissions, DNS authority, Worker deployment. Remaining issue is Cloudflare zone Worker Route execution on the canonical host.
+  - Close only when the canonical endpoint is verifiably dynamic and reconciles Missing=0, Stale=0, Duplicates=0 at a fixed timestamp. GSC remains OBSERVATION_ONLY. AGENTS.md unchanged until then.
 
 ### Pending architecture documentation (apply only after live execution and reconciliation pass)
 Replace the existing sitemap rule in AGENTS.md with:
@@ -15,7 +23,7 @@ Replace the existing sitemap rule in AGENTS.md with:
 - [x] Audit current GSC access, sitemap freshness, metrics structures and scheduler without changing production jobs.
 - [x] Add raw Google metrics, canonical content mapping and measured signals with early-data protection.
 - [x] Add analysis-only recommendations and pillar coverage review; no generation or automatic publishing.
-- [ ] Resolve canonical-domain news sitemap freshness between deployments; hosting capability/approved delivery method required.
+- [ ] Resolve canonical-domain news sitemap freshness between deployments (Phase 7C OPEN) — blocked by WORKER_ROUTE_EXECUTION_NOT_APPLYING_ON_CANONICAL_HOST; see Phase 7C.1/7C.2 entry above.
 - [x] Remove invalid SearchAction and Topic FAQ markup; reconcile internal links across the full corpus in bounded batches.
 - [x] Validate safety, access, live results and return the specified Phase 7C report; full readiness blocked by sitemap delivery choice.
 
