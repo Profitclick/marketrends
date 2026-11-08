@@ -88,3 +88,15 @@ Deno.test("cosine 0.80 -> CREATE_NEW", async () => {
     { type: "guide", slug: "slik-regner-du-ut-saas-verdsettelse", title: "Slik regner du ut SaaS-verdsettelse" });
   assertEquals(r.decision, "CREATE_NEW");
 });
+
+Deno.test("search intent: semantic unavailable -> REVIEW_REQUIRED before AI, no writes", async () => {
+  failEmbed();
+  const db = mockDb();
+  const r = await evergreenGuard(db, "k", { type: "intent", slug: "hva-er-rentefond", title: "Hva er rentefond" });
+  assertEquals(r.decision, "REVIEW_REQUIRED"); assertEquals(r.barrier, "semantic_unavailable"); assertEquals(db.writes.length, 0);
+});
+Deno.test("search intent with same title as an existing guide -> REVIEW_REQUIRED", async () => {
+  okEmbed();
+  const r = await evergreenGuard(mockDb(), "k", { type: "intent", slug: "x", title: "Slik lanserer du en SaaS" });
+  assertEquals(r.decision, "REVIEW_REQUIRED"); assertEquals(r.barrier, "normalized_title");
+});
