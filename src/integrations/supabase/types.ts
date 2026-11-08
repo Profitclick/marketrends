@@ -2220,11 +2220,22 @@ export type Database = {
         Returns: Json
       }
       normalize_node_name: { Args: { s: string }; Returns: string }
+      phase7c_link_audit: { Args: never; Returns: Json }
       phase7c_link_batch: {
         Args: { p_limit?: number; p_reset?: boolean }
         Returns: Json
       }
       phase7c_map_urls: { Args: { p_urls: string[] }; Returns: Json }
+      phase7c_replace_gsc_day: {
+        Args: {
+          p_dataset: string
+          p_date: string
+          p_rows: Json
+          p_site: string
+          p_status: string
+        }
+        Returns: undefined
+      }
       preview_article_clusters: {
         Args: never
         Returns: {

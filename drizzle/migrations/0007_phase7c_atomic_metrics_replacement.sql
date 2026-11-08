@@ -1,0 +1,16 @@
+CREATE OR REPLACE FUNCTION public.phase7c_replace_gsc_day(p_site text,p_date date,p_dataset text,p_rows jsonb,p_status text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+IF p_dataset NOT IN ('page','query') OR p_status NOT IN ('FINAL','TRUNCATED') OR jsonb_typeof(p_rows)<>'array' THEN RAISE EXCEPTION 'Invalid ingestion batch'; END IF;
+PERFORM pg_advisory_xact_lock(hashtext(p_site||p_date::text||p_dataset));
+DELETE FROM gsc_daily_metrics WHERE site_url=p_site AND date=p_date AND dataset=p_dataset;
+INSERT INTO gsc_daily_metrics(site_url,date,dataset,page,canonical_url,query,clicks,impressions,ctr,position,search_type,device,country,appearance,ingested_at)
+SELECT p_site,p_date,p_dataset,x.page,x.canonical_url,coalesce(x.query,''),x.clicks,x.impressions,x.ctr,x.position,'web','','','',now() FROM jsonb_to_recordset(p_rows) AS x(page text,canonical_url text,query text,clicks double precision,impressions double precision,ctr double precision,position double precision);
+INSERT INTO gsc_ingestion_days(site_url,date,dataset,status,row_count) VALUES(p_site,p_date,p_dataset,p_status,jsonb_array_length(p_rows)) ON CONFLICT(site_url,date,dataset) DO UPDATE SET status=excluded.status,row_count=excluded.row_count,ingested_at=now();
+END $$;
+REVOKE ALL ON FUNCTION public.phase7c_replace_gsc_day(text,date,text,jsonb,text) FROM PUBLIC,anon,authenticated; GRANT EXECUTE ON FUNCTION public.phase7c_replace_gsc_day(text,date,text,jsonb,text) TO service_role;
+CREATE OR REPLACE FUNCTION public.phase7c_link_audit() RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+WITH valid AS (
+SELECT 'article' type,slug FROM articles WHERE published=true UNION ALL SELECT 'topic',slug FROM topics UNION ALL SELECT 'entity',slug FROM entities UNION ALL SELECT 'cluster',slug FROM cluster_definitions UNION ALL SELECT 'guide',slug FROM guides WHERE published=true UNION ALL SELECT 'knowledge',slug FROM knowledge_pages WHERE published=true UNION ALL SELECT 'comparison',slug FROM comparison_pages WHERE published=true UNION ALL SELECT 'search_intent',target_slug FROM search_intents WHERE content_status='published'
+)
+SELECT jsonb_build_object('eligible_articles',(SELECT count(*) FROM articles WHERE published=true),'total_links',(SELECT count(*) FROM internal_links),'self_links',(SELECT count(*) FROM internal_links WHERE source_type=target_type AND source_slug=target_slug),'duplicates',(SELECT count(*) FROM (SELECT source_type,source_slug,target_type,target_slug FROM internal_links GROUP BY 1,2,3,4 HAVING count(*)>1) d),'broken_targets',(SELECT count(*) FROM internal_links l WHERE NOT EXISTS(SELECT 1 FROM valid v WHERE v.type=l.target_type AND v.slug=l.target_slug)),'unpublished_targets',(SELECT count(*) FROM internal_links l JOIN articles a ON l.target_type='article' AND l.target_slug=a.slug WHERE NOT a.published),'orphans',(SELECT count(*) FROM articles a WHERE published=true AND NOT EXISTS(SELECT 1 FROM internal_links l WHERE l.source_type='article' AND l.source_slug=a.slug))); $$;
+REVOKE ALL ON FUNCTION public.phase7c_link_audit() FROM PUBLIC,anon,authenticated; GRANT EXECUTE ON FUNCTION public.phase7c_link_audit() TO service_role;

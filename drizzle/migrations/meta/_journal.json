@@ -50,6 +50,13 @@
       "when": 1794114499771,
       "tag": "0006_phase7c_measured_search_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794114569809,
+      "tag": "0007_phase7c_atomic_metrics_replacement",
+      "breakpoints": true
     }
   ]
 }
