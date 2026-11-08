@@ -71,6 +71,22 @@ export async function prerender(outDir, base, key, io = fs) {
   write(listPage({ path: "/ressurser", title: "Ressurssenter – data, kilder og rapporter | Marketrends", h1: "Ressurser, data og kilder", crumbName: "Ressurser",
     description: "Et åpent bibliotek av kilder, datasett og rapporter som ligger til grunn for Marketrends sin dekning.", items: latest.slice(0, 10) }));
 
+  // Public pages outside DB hubs (copy mirrors each React page's own title/H1).
+  const STATIC = [
+    ["/academy", "Markettrends Academy – Lær finans, AI og entreprenørskap", "Lær finans, AI og entreprenørskap", "Academy", "Strukturerte læringsløp om finans, AI og entreprenørskap for norske lesere."],
+    ["/tools", "Verktøy – Kalkulatorer for finans, SaaS og startup", "Kalkulatorer og verktøy", "Verktøy", "Kalkulatorer og verktøy for finans, SaaS og startup."],
+    ["/trending", "Trending nå – Hva beveger markedet i dag?", "Trending nå", "Trending", "Temaer og aktører som får mest oppmerksomhet i norske finans- og teknologinyheter nå."],
+    ["/newsletter", "Newsletter Center – temabaserte nyhetsbrev | Marketrends", "Nyhetsbrev", "Nyhetsbrev", "Temabaserte nyhetsbrev om finans, fintech, krypto, AI og investering fra Marketrends."],
+  ];
+  for (const [p, title, h1, crumbName, description] of STATIC) write(listPage({ path: p, title, h1, crumbName, description, items: latest.slice(0, 10) }));
+  // /ressurser/:type renders Resources, whose canonical is /ressurser; mirror that so the fallback never shows the homepage canonical.
+  for (const t of ["research", "datasets", "sources", "statistics", "government", "industry"]) write(listPage({ path: `/ressurser/${t}`, canonicalPath: "/ressurser",
+    title: "Ressurssenter – data, kilder og rapporter | Marketrends", h1: "Ressurser, data og kilder", crumbName: "Ressurser",
+    description: "Et åpent bibliotek av kilder, datasett og rapporter som ligger til grunn for Marketrends sin dekning.", items: latest.slice(0, 10) }));
+  const intents = dedupeIntents(await getAll(base, key, "search_intents?select=target_slug,keyword,meta,created_at&content_status=eq.published&target_slug=not.is.null&order=created_at.desc,target_slug.asc"));
+  for (const i of intents) { const m = i.meta || {}; write(listPage({ path: `/intent/${i.target_slug}`, title: m.meta_title || m.title || i.keyword, h1: m.title || i.keyword, crumbName: m.title || i.keyword,
+    description: m.meta_description || m.summary || i.keyword, items: latest.slice(0, 10) })); }
+
   const hubs = [
     ["topics", "/topic/", "Tema", "slug,name,description,meta_title,meta_description,created_at", "article_count=gt.0"],
     ["entities", "/entity/", "Aktør", "slug,name,description,summary,meta_title,meta_description,created_at", "mention_count=gt.0"],

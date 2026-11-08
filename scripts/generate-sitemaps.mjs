@@ -1,7 +1,7 @@
 // Builds all public sitemaps into the build output from published database rows.
 import fs from "node:fs";
 import path from "node:path";
-import { dedupe, shard, urlset, newsFilter, newsset, sitemapIndex, VERTICALS, NEWS_SHARD_SIZE, NEWS_SITEMAP_URL } from "./sitemap-lib.mjs";
+import { dedupe, shard, urlset, newsFilter, newsset, sitemapIndex, VERTICALS, PUBLIC_STATIC, dedupeIntents, NEWS_SHARD_SIZE, NEWS_SITEMAP_URL } from "./sitemap-lib.mjs";
 
 async function fetchAll(base, key, table, select, filter = "published=eq.true") {
   const rows = [];
@@ -23,8 +23,9 @@ export async function generateSitemaps(outDir, base, key) {
   const write = (name, xml) => { fs.writeFileSync(path.join(outDir, name), xml); files.push(name); };
   const lm = (r) => (r.updated_at || r.created_at || "").slice(0, 10) || undefined;
 
+  const intents = dedupeIntents(await fetchAll(base, key, "search_intents", "target_slug,created_at,updated_at", "content_status=eq.published&target_slug=not.is.null"));
   const cats = ["krypto-trading", "teknologi-ai", "finans-marked", "grunder-startups", "penger-karriere", "trender-analyse", "guider-forklart"];
-  write("sitemap-pages.xml", urlset([{ path: "/" }, ...VERTICALS.map((v) => ({ path: `/${v}` })), ...cats.map((c) => ({ path: `/kategori/${c}` })), { path: "/om-oss" }, { path: "/ressurser" }]));
+  write("sitemap-pages.xml", urlset([{ path: "/" }, ...VERTICALS.map((v) => ({ path: `/${v}` })), ...cats.map((c) => ({ path: `/kategori/${c}` })), { path: "/om-oss" }, { path: "/ressurser" }, ...PUBLIC_STATIC.map((p) => ({ path: p })), ...intents.map((i) => ({ path: `/intent/${i.target_slug}`, lastmod: lm(i) }))]));
 
   const articles = dedupe(await fetchAll(base, key, "articles", "slug,title,created_at,updated_at"));
   shard(articles).forEach((s, i) => write(`sitemap-articles-${i + 1}.xml`, urlset(s.map((a) => ({ path: `/${a.slug}`, lastmod: lm(a) })))));
