@@ -1,5 +1,11 @@
 # Database recovery
 
+## Phase 7D.2
+- [ ] Set only the existing hourly ingestion job to fetch_only and verify a real scheduler-authenticated run with zero AI calls and article writes.
+- [ ] Restrict only start_pipeline_run and complete_pipeline_run to required internal identities; verify denied public access and working internal tracking.
+- [ ] Correct the stale Cloudflare architecture rule, audit tracked environment variable/history hygiene without exposing values, and run targeted regressions.
+- [ ] Return the required foundation report; do not proceed to another phase.
+
 ## Phase 7D.1
 - [x] Normalize HTML-encoded article image URLs at ingestion and repair affected existing URLs without generation: 897 repaired, 0 encoded URLs remain; ingestion deployed.
 - [x] Verify dashboard loads only on demand: existing React.lazy boundary and separate production chunk confirmed; browser requested no Dashboard module on public pages. No loading code change needed.
