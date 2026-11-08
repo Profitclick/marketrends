@@ -36,7 +36,11 @@ Deno.serve(async (req) => {
         .select("relevance_score, articles!inner(id, created_at, published, title, image_url, meta_description, article_type)")
         .eq("topic_id", t.id);
 
-      const pub = (rows || []).filter((r) => r.articles?.published);
+      type TopicArticleRow = {
+        relevance_score: number | null;
+        articles: { id: string; created_at: string; published: boolean; title: string; image_url: string | null; meta_description: string | null; article_type: string | null };
+      };
+      const pub = ((rows || []) as unknown as TopicArticleRow[]).filter((r) => r.articles?.published);
       const articleSet = new Set<string>(pub.map((r) => r.articles.id));
       topicArticleSets.set(t.id, articleSet);
 
