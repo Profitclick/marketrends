@@ -16,6 +16,16 @@ import { evaluateDuplicate, recordVerdict, type Candidate } from "./dupe.ts";
 import { slugify, DUPLICATE_THRESHOLD, logDecision } from "./semantic.ts";
 import type { Db } from "./db.ts";
 
+/** Loosely structured JSON returned by the evergreen AI generators (all fields optional). */
+export type EvergreenAiOutput = {
+  title?: string; summary?: string; content?: string; meta_title?: string; meta_description?: string;
+  key_takeaways?: string[]; faq?: { q: string; a: string }[]; steps?: unknown[]; resources?: unknown[];
+  pros_cons?: Record<string, unknown>; estimated_read_time?: number;
+};
+
+export type GuardCache = { titles?: TitleIndexRow[] };
+export type GuardVerdict = GuardResult & { slug: string };
+
 export type TitleIndexRow = { type: string; ref: string; title: string; n: string };
 
 export type EvergreenDecision = "CREATE_NEW" | "UPDATE_EXISTING" | "SKIP_DUPLICATE" | "REVIEW_REQUIRED";

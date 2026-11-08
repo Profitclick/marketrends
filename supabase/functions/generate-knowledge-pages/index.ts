@@ -3,7 +3,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard, type EvergreenAiOutput, type GuardCache, type GuardVerdict } from "../_shared/evergreen-guard.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -13,7 +13,7 @@ const slugify = (s: string) =>
     .replace(/[æå]/g, "a").replace(/ø/g, "o")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-async function aiJson(prompt: string, key: string): Promise<any> {
+async function aiJson(prompt: string, key: string): Promise<EvergreenAiOutput> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -64,9 +64,9 @@ Deno.serve(async (req) => {
 
     const dryRun = body.dry_run === true;
     const allowUpdate = body.allow_update === true;
-    const cache: any = {};
-    const verdicts: any[] = [];
-    const pending: any[] = [];
+    const cache: GuardCache = {};
+    const verdicts: GuardVerdict[] = [];
+    const pending: (typeof topics)[number][] = [];
     const scan = topics.filter((t) => dryRun || !done.has(t.id)).slice(0, dryRun ? Math.min(Number(body.limit) || 10, 20) : limit * 3);
     for (const t of scan) {
       const slug = `hva-er-${slugify(t.name)}`;
