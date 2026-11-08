@@ -93,7 +93,7 @@ export const PillarNav = ({ intent }: Props) => {
       rel.guides = (g.data as any) || [];
       rel.comparisons = (c.data as any) || [];
       rel.entities = (ent.data as any) || [];
-      rel.articles = ((art.data as any[]) || []).map((r) => r.articles ?? r);
+      rel.articles = ((art.data as unknown as { articles: { slug: string; title: string } }[]) || []).map((r) => r.articles);
 
       if (cancelled) return;
       setPillar(pillarRow);
