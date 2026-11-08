@@ -43,6 +43,13 @@
       "when": 1793521521055,
       "tag": "0005_repair_news_scheduler_target",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794114499771,
+      "tag": "0006_phase7c_measured_search_foundation",
+      "breakpoints": true
     }
   ]
 }
