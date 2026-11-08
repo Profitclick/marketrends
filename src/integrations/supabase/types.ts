@@ -2226,6 +2226,7 @@ export type Database = {
         Returns: Json
       }
       phase7c_map_urls: { Args: { p_urls: string[] }; Returns: Json }
+      phase7c_reference_links: { Args: never; Returns: number }
       phase7c_replace_gsc_day: {
         Args: {
           p_dataset: string
