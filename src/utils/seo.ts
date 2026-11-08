@@ -32,7 +32,7 @@ export const generateArticleSchema = (article: ArticleSEO) => {
     "headline": article.title.substring(0, 110),
     "description": article.description.substring(0, 160),
     "image": [
-      article.image || `${SITE_URL}/og-image.jpg`
+      article.image || "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/697c7e75-8636-4eeb-a190-4d486aaace10"
     ],
     "datePublished": article.publishedTime,
     "dateModified": article.modifiedTime || article.publishedTime,
