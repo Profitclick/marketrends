@@ -11,6 +11,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { evaluateDuplicate, recordVerdict, type Candidate } from "../_shared/dupe.ts";
 import { embed } from "../_shared/semantic.ts";
+import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
@@ -122,12 +123,14 @@ async function buildInternalLinks(supabase: any, intent: any) {
     if (e) links.push({ source_type: sourceType, source_slug: sourceSlug, target_type: "entity", target_slug: e.slug, anchor: e.name, relevance_score: 80 });
   }
 
-  // Related articles (fuzzy by tag/category)
-  const { data: arts } = await supabase.from("articles")
-    .select("slug,title,category").eq("published", true)
-    .ilike("category", `%${(intent.meta?.category || intent.search_cluster || "").slice(0, 20)}%`)
-    .limit(4);
-  for (const a of arts || []) {
+  // Related articles: canonical cluster membership only (never articles.category).
+  const { data: rows } = intent.search_cluster
+    ? await supabase.from("article_clusters").select("articles!inner(slug,title,published)")
+        .eq("cluster_slug", intent.search_cluster).eq("articles.published", true)
+        .order("score", { ascending: false }).limit(4)
+    : { data: [] as any[] };
+  const arts = (rows || []).map((r: any) => r.articles);
+  for (const a of arts) {
     if (!a.slug) continue;
     links.push({
       source_type: sourceType, source_slug: sourceSlug,
