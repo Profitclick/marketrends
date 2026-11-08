@@ -19,8 +19,13 @@ const NO_KEYWORDS = [
   "brønnøysund", "nav ", "kronen", "regjeringen", "stortinget",
 ];
 
-function scoreArticle(a: any, inboundLinks: number) {
-  const sources: any[] = Array.isArray(a.sources) ? a.sources : [];
+type ScoredArticle = {
+  sources?: unknown; entities?: unknown; topics?: unknown; ingress?: string | null;
+  key_takeaways?: unknown; faq?: unknown; [k: string]: unknown;
+};
+
+function scoreArticle(a: ScoredArticle, inboundLinks: number) {
+  const sources: { url?: string }[] = Array.isArray(a.sources) ? a.sources : [];
   const officialCount = sources.filter((s) => {
     const url = (s?.url || "").toLowerCase();
     return OFFICIAL_DOMAINS.some((d) => url.includes(d));

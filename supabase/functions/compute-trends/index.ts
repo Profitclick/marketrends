@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       .limit(20000);
 
     const topicAgg = new Map<string, { c24: number; c7: number; c30: number }>();
-    for (const r of (at || []) as any[]) {
+    for (const r of (at || []) as { topic_id: string; articles?: { created_at?: string } | null }[]) {
       const t = r.articles?.created_at;
       if (!t) continue;
       const a = topicAgg.get(r.topic_id) || { c24: 0, c7: 0, c30: 0 };
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       .limit(20000);
 
     const entAgg = new Map<string, { c24: number; c7: number; c30: number }>();
-    for (const r of (ae || []) as any[]) {
+    for (const r of (ae || []) as { entity_id: string; created_at: string }[]) {
       const a = entAgg.get(r.entity_id) || { c24: 0, c7: 0, c30: 0 };
       if (r.created_at >= d24) a.c24++; if (r.created_at >= d7) a.c7++; a.c30++;
       entAgg.set(r.entity_id, a);

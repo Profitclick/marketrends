@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     const guideTopicIds = new Set((guides || []).map((r) => r.topic_id).filter(Boolean));
     const comparisonSlugs = new Set((comparisons || []).map((r) => r.slug));
 
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
 
     for (const t of topics || []) {
       const category = t.category || "Trender & Analyse";
