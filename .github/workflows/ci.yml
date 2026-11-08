@@ -74,8 +74,10 @@ jobs:
         run: npm run build
 
   lockfile:
-    name: Generate lockfile artifact
+    name: Refresh lockfile
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,9 +91,14 @@ jobs:
       - name: Refresh package lock
         run: npm install --package-lock-only --no-audit --no-fund
 
-      - name: Upload package lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-lock
-          path: package-lock.json
-          if-no-files-found: error
+      - name: Commit refreshed lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile already synchronized"
+            exit 0
+          fi
+          git commit -m "chore: refresh package lock"
+          git push
