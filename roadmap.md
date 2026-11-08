@@ -1,5 +1,11 @@
 # Database recovery
 
+## Phase 7C.1
+- [x] Reconcile the live news sitemap against exact eligible database slugs at a fixed audit timestamp.
+- [ ] Publish existing structured-data cleanup — waiting on a decision about critical security findings.
+- [ ] Implement automatic canonical news-sitemap delivery — no supported current-host route or partial static refresh confirmed.
+- [ ] Verify live structured data, automatic refresh, cost and automation safety; return the specified report.
+
 ## Phase 7C
 - [x] Audit current GSC access, sitemap freshness, metrics structures and scheduler without changing production jobs.
 - [x] Add raw Google metrics, canonical content mapping and measured signals with early-data protection.
