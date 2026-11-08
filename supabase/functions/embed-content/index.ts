@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
         if (rows.length < batch) break;
       }
       let cq = supabase.from(cfg.table).select("*", { count: "exact", head: true }).is("embedding", null);
-      if (cfg.filter) cq = cfg.filter(cq);
+      if (cfg.filter) cq = cfg.filter(cq as unknown as Filterable) as unknown as typeof cq;
       const { count } = await cq;
       result[cfg.table] = { ...(result[cfg.table] || {}), embedded, remaining: count || 0 };
     }
