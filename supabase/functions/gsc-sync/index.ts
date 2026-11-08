@@ -40,22 +40,27 @@ Deno.serve(async(req)=>{
   checked(await db.from('gsc_sync_state').upsert({id:true,selected_site_url:site,status:'SYNCING',last_started_at:new Date().toISOString(),error:null}));
   let rowsIngested=0;
   const days=state?.last_completed_at?input.days:90;
-  for(let offset=days-1;offset>=0;offset--){
-   const date=new Date(end);date.setUTCDate(date.getUTCDate()-offset);const day=date.toISOString().slice(0,10);
-   for(const dataset of ['page','query']){
-    const rows:any[]=[];let truncated=false;
+  const startDate=new Date(end.getTime()-(days-1)*86400000).toISOString().slice(0,10);
+  for(const dataset of ['page','query']){
+    const rowsByDay=new Map<string,any[]>();let truncated=false;
     for(let start=0;start<50000;start+=25000){
-     const result=await call(`/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,{startDate:day,endDate:day,type:'web',dataState:'final',dimensions:dataset==='page'?['page']:['page','query'],aggregationType:'byPage',rowLimit:25000,startRow:start});
+     const result=await call(`/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,{startDate,endDate,type:'web',dataState:'final',dimensions:dataset==='page'?['date','page']:['date','page','query'],aggregationType:'byPage',rowLimit:25000,startRow:start});
      for(const r of result.rows??[]){
-      const canonical=canonicalUrl(r.keys[0]);if(!canonical)continue;
+      const canonical=canonicalUrl(r.keys[1]);if(!canonical)continue;
       if(![r.clicks,r.impressions,r.ctr,r.position].every(Number.isFinite)||r.clicks<0||r.impressions<0||r.ctr<0||r.ctr>1||r.position<0)throw new Error('Invalid Google metric values');
-      rows.push({site_url:site,date:day,dataset,page:r.keys[0],canonical_url:canonical,query:dataset==='query'?r.keys[1]:'',clicks:r.clicks,impressions:r.impressions,ctr:r.ctr,position:r.position,search_type:'web',device:'',country:'',appearance:'',ingested_at:new Date().toISOString()});
+      const day=r.keys[0];
+      const rows=rowsByDay.get(day)??[];
+      rows.push({site_url:site,date:day,dataset,page:r.keys[1],canonical_url:canonical,query:dataset==='query'?r.keys[2]:'',clicks:r.clicks,impressions:r.impressions,ctr:r.ctr,position:r.position,search_type:'web',device:'',country:'',appearance:'',ingested_at:new Date().toISOString()});
+      rowsByDay.set(day,rows);
      }
      if((result.rows??[]).length<25000)break;if(start===25000)truncated=true;
     }
+    for(let offset=days-1;offset>=0;offset--){
+    const date=new Date(end);date.setUTCDate(date.getUTCDate()-offset);const day=date.toISOString().slice(0,10);
+    const rows=rowsByDay.get(day)??[];
     // Day replacement avoids stale rows when Google revises data. Done atomically by RPC.
     checked(await db.rpc('phase7c_replace_gsc_day',{p_site:site,p_date:day,p_dataset:dataset,p_rows:rows,p_status:truncated?'TRUNCATED':'FINAL'}));rowsIngested+=rows.length;
-   }
+    }
   }
   const raw=await all(db,'gsc_daily_metrics',q=>q.eq('site_url',site).eq('dataset','page').gte('date',new Date(end.getTime()-179*86400000).toISOString().slice(0,10)).order('id'));
   const queryRows=await all(db,'gsc_daily_metrics',q=>q.eq('site_url',site).eq('dataset','query').gte('date',new Date(end.getTime()-89*86400000).toISOString().slice(0,10)).order('id'));
