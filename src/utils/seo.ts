@@ -38,8 +38,7 @@ export const generateArticleSchema = (article: ArticleSEO) => {
     "dateModified": article.modifiedTime || article.publishedTime,
     "author": {
       "@type": "Person",
-      "name": article.author,
-      "url": `${SITE_URL}/forfatter/${encodeURIComponent(article.author.toLowerCase().replace(/\s+/g, '-'))}`
+      "name": article.author
     },
     "publisher": {
       "@type": "Organization",
