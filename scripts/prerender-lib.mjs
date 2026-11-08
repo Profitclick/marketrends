@@ -119,6 +119,6 @@ export function hubPage({ prefix, row, label, articles = [] }) {
     path: `${prefix}${row.slug}`, title: row.meta_title || `${name} | Marketrends.no`, h1: name, description: desc,
     intro: [row.summary || row.description, ...(row.content ? paragraphs(row.content, 4) : [])].filter(Boolean),
     links: articles.map((a) => ({ href: `/${a.slug}`, text: a.title })),
-    schemas: [breadcrumb([{ name: "Forside", path: "/" }, { name: label }, { name }])],
+    schemas: [breadcrumb([{ name: "Forside", path: "/" }, { name }])],
   };
 }
