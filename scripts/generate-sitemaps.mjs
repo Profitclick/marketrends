@@ -1,7 +1,7 @@
 // Builds all public sitemaps into the build output from published database rows.
 import fs from "node:fs";
 import path from "node:path";
-import { dedupe, shard, urlset, newsFilter, newsset, sitemapIndex, VERTICALS } from "./sitemap-lib.mjs";
+import { dedupe, shard, urlset, newsFilter, newsset, sitemapIndex, VERTICALS, NEWS_SHARD_SIZE } from "./sitemap-lib.mjs";
 
 async function fetchAll(base, key, table, select, filter = "published=eq.true") {
   const rows = [];
@@ -30,7 +30,20 @@ export async function generateSitemaps(outDir, base, key) {
   shard(articles).forEach((s, i) => write(`sitemap-articles-${i + 1}.xml`, urlset(s.map((a) => ({ path: `/${a.slug}`, lastmod: lm(a) })))));
 
   const news = newsFilter(articles);
-  if (news.length) write("sitemap-news.xml", newsset(news));
+  // Always replace the canonical file, including an empty window.
+  for (const name of fs.readdirSync(outDir)) {
+    if (/^sitemap-news-\d+\.xml$/.test(name)) fs.unlinkSync(path.join(outDir, name));
+  }
+  if (news.length <= NEWS_SHARD_SIZE) write("sitemap-news.xml", newsset(news));
+  else {
+    const newsFiles = [];
+    shard(news, NEWS_SHARD_SIZE).forEach((s, i) => {
+      const name = `sitemap-news-${i + 1}.xml`;
+      fs.writeFileSync(path.join(outDir, name), newsset(s));
+      newsFiles.push(name);
+    });
+    write("sitemap-news.xml", sitemapIndex(newsFiles));
+  }
 
   const groups = [
     ["topics", "slug,created_at,updated_at", "/topic/", "article_count=gt.0"],

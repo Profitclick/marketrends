@@ -95,7 +95,7 @@ export const generateOrganizationSchema = () => {
   };
 };
 
-// Generate WebSite schema with SearchAction
+// Generate WebSite schema (no unimplemented search action).
 export const generateWebsiteSchema = () => {
   return {
     "@context": "https://schema.org",
@@ -103,15 +103,7 @@ export const generateWebsiteSchema = () => {
     "name": SITE_NAME,
     "alternateName": "Marketrends - Norsk Finans & Teknologinyheter",
     "url": SITE_URL,
-    "inLanguage": "nb-NO",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": {
-        "@type": "EntryPoint",
-        "urlTemplate": `${SITE_URL}/sok?q={search_term_string}`
-      },
-      "query-input": "required name=search_term_string"
-    }
+    "inLanguage": "nb-NO"
   };
 };
 

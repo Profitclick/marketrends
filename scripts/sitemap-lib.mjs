@@ -2,6 +2,7 @@
 export const SITE_URL = "https://marketrends.no";
 export const SHARD_SIZE = 45000;
 export const NEWS_WINDOW_HOURS = 48;
+export const NEWS_SHARD_SIZE = 1000;
 export const VERTICALS = ["ai", "krypto", "fintech", "startup", "investering", "daytrading"];
 
 export const esc = (s) =>
@@ -26,7 +27,10 @@ export const urlset = (entries) =>
   `\n</urlset>\n`;
 
 export const newsFilter = (articles, now = Date.now(), hours = NEWS_WINDOW_HOURS) =>
-  dedupe(articles).filter((a) => now - new Date(a.created_at).getTime() <= hours * 3600_000);
+  dedupe(articles.filter((a) => {
+    const age = now - Date.parse(a.created_at);
+    return a.published !== false && Number.isFinite(age) && age >= 0 && age <= hours * 3600_000;
+  }));
 
 export const newsset = (articles) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n` +

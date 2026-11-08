@@ -175,17 +175,6 @@ const TopicPage = () => {
     },
   };
 
-  const guideArticles = articles.filter((a) => a.article_type === "guide" && a.meta_description).slice(0, 5);
-  const faqSchema = guideArticles.length >= 3 ? {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: guideArticles.map((a) => ({
-      "@type": "Question",
-      name: a.title,
-      acceptedAnswer: { "@type": "Answer", text: a.meta_description },
-    })),
-  } : undefined;
-
   const breadcrumbs = [
     { name: "Hjem", url: BASE_URL },
     { name: "Tema", url: `${BASE_URL}/` },
@@ -204,7 +193,6 @@ const TopicPage = () => {
         ogImage={ogImage}
         breadcrumbs={breadcrumbs}
         articleSchema={collectionSchema}
-        faqSchema={faqSchema}
         tags={entities.slice(0, 5).map((e) => e.name)}
       />
 
