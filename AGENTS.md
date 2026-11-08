@@ -13,3 +13,6 @@
 - Article internal links reconcile in bounded transactional cursor batches, then a relation-change queue; reference links reconcile separately. Why: full-corpus coverage and stale-link pruning without unbounded function queries.
 - RSS feed mutations must use the database-backed admin policy only; never retain an authenticated-user ALL policy. Why: permissive policies combine with OR and can silently bypass the admin restriction.
 - Public internal links must resolve both endpoints to existing public content; admins retain audit visibility. Why: readers need editorial links, not references to drafts or private analysis.
+- RSS image URLs pass through the deterministic image-url normalizer before persistence, preserving percent-encoded parameters. Why: XML/HTML entities in feed URLs break article images.
+- Organization and WebSite JSON-LD are owned exclusively by index.html; SEOHead emits route-specific schemas only. Why: every route inherits the static head and must not duplicate sitewide schemas.
+- Dashboard remains a React.lazy route within Suspense and must not be imported eagerly by public pages. Why: public readers should not download administration tools.
