@@ -47,7 +47,7 @@ interface Selection {
 
 const EMPTY: Selection = { selected_entities: [], selected_topics: [], new_entities: [], new_topics: [] };
 
-type AiUsage = { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+type AiUsage = { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number; credits?: number };
 
 async function selectWithAI(
   article: { title: string; content: string; category: string },
