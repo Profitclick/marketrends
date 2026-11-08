@@ -4,7 +4,7 @@
 - [x] Reconcile the live news sitemap against exact eligible database slugs at a fixed audit timestamp.
 - [x] Verify existing structured-data cleanup is already live; request republishing after fixing both critical access findings.
 - [x] Restrict feed mutations to admins and public link reads to valid public endpoints; verify admin UI, 16 tests and fresh scan.
-- [ ] Confirm automatic news-sitemap delivery (Phase 7C.2 OPEN — pending post-publish production validation). Delivery blocker WORKER_ROUTE_EXECUTION_NOT_APPLYING_ON_CANONICAL_HOST RESOLVED: sitemap index now references the Worker Custom Domain https://news-sitemap.marketrends.no/sitemap-news.xml; static /sitemap-news.xml kept as fallback only. Historical evidence:
+- [x] Confirm automatic news-sitemap delivery (Phase 7C.2 COMPLETE — validated live 2026-11-08 11:17 UTC: index lists Worker URL once, Worker 200/valid XML/75 current URLs, homepage+robots healthy). Delivery blocker WORKER_ROUTE_EXECUTION_NOT_APPLYING_ON_CANONICAL_HOST RESOLVED: sitemap index now references the Worker Custom Domain https://news-sitemap.marketrends.no/sitemap-news.xml; static /sitemap-news.xml kept as fallback only. Historical evidence:
   - DB snapshot 2026-11-08T09:41:18.837488Z: 80 eligible published articles in the inclusive rolling 48-hour window.
   - workers.dev endpoint of `marketrends-news-sitemap`: HTTP 200, valid XML, 80 URLs, `Cache-Control: public, max-age=0, s-maxage=600`, `X-Marketrends-News-Count: 80`, `X-Marketrends-Sitemap-Source: cloudflare-worker`.
   - Canonical `https://marketrends.no/sitemap-news.xml`: still Lovable static output — 84 URLs, `X-Deployment-Id` present, no Worker headers.
@@ -23,7 +23,7 @@ Replace the existing sitemap rule in AGENTS.md with:
 - [x] Audit current GSC access, sitemap freshness, metrics structures and scheduler without changing production jobs.
 - [x] Add raw Google metrics, canonical content mapping and measured signals with early-data protection.
 - [x] Add analysis-only recommendations and pillar coverage review; no generation or automatic publishing.
-- [ ] Resolve news sitemap freshness between deployments (Phase 7C OPEN) — delivery blocker resolved via Worker Custom Domain; closes with Phase 7C.2 production validation above.
+- [x] Resolve news sitemap freshness between deployments — resolved via Worker Custom Domain (Phase 7C.2 validated).
 - [x] Remove invalid SearchAction and Topic FAQ markup; reconcile internal links across the full corpus in bounded batches.
 - [x] Validate safety, access, live results and return the specified Phase 7C report; full readiness blocked by sitemap delivery choice.
 
