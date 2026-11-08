@@ -6,6 +6,7 @@
 - [x] Correct stale Cloudflare architecture rule; current .env and 4 available historical versions contain only public/client-safe configuration. No secret rotation or environment changes.
 - [x] Run 36 targeted tests successfully; automatic preview build OK and clean diff check. Return foundation report and stop.
 - [ ] Obtain separate frontend typecheck evidence: automatic build logs report build OK only; manual project builds/typechecks are prohibited in this environment, so this requirement remains unverified.
+- [x] Foundation audit 8 Nov 2026: removed synthetic FAQPage from KeyTakeaways (question was invented, not visible Q&A); added `typecheck` and `test` npm scripts; marked retired apex Worker notes HISTORICAL. Tests 25/26 (admin RSS test needs admin session); eslint clean on touched paths. Typecheck script added but not run here (manual typecheck prohibited in this environment).
 
 ## Phase 7D.1
 - [x] Normalize HTML-encoded article image URLs at ingestion and repair affected existing URLs without generation: 897 repaired, 0 encoded URLs remain; ingestion deployed.
