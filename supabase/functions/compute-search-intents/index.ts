@@ -163,13 +163,13 @@ Deno.serve(async (req) => {
       clusterLinks,
     };
 
-    const rows: any[] = [];
+    const rows: IntentRow[] = [];
 
     const buildRow = (opts: {
       tpl: Template; name: string; other?: string; cluster: string;
       topicId?: string; entityId?: string; secondaryId?: string;
       authority: number; opportunity: number; demand: number;
-      momentum: number; source: string; extraMeta?: any;
+      momentum: number; source: string; extraMeta?: Record<string, unknown>;
     }) => {
       const { tpl } = opts;
       const keyword = tpl.pattern(opts.name, opts.other);
@@ -221,7 +221,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    const byType = new Map<string, any[]>();
+    type IntentRow = ReturnType<typeof buildRow>;
+    type EntityRow = NonNullable<typeof entitiesRes.data>[number];
+    const byType = new Map<string, EntityRow[]>();
     for (const e of entitiesRes.data || []) {
       const t = e.entity_type || "other";
       if (!byType.has(t)) byType.set(t, []);
@@ -258,7 +260,7 @@ Deno.serve(async (req) => {
     }
 
     // Dedupe by target_slug (keep highest priority)
-    const seen = new Map<string, any>();
+    const seen = new Map<string, IntentRow>();
     for (const r of rows) {
       if (!r.target_slug) continue;
       const prev = seen.get(r.target_slug);
