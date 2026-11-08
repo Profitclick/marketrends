@@ -5,13 +5,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { renderRoute, articlePage, listPage, hubPage, routeFile, parity, CATEGORIES, categorySlug } from "./prerender-lib.mjs";
 import { dedupe, dedupeIntents } from "./sitemap-lib.mjs";
+import { restFetch } from "./rest-fetch.mjs";
 
 const PAGE = 500; // batched reads keep memory bounded per request
 
 async function get(base, key, q) {
-  const res = await fetch(`${base}/rest/v1/${q}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-  if (!res.ok) throw new Error(`${q.split("?")[0]}: HTTP ${res.status}`);
-  return res.json();
+  return restFetch(`${base}/rest/v1/${q}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } }, { label: q.split("?")[0] });
 }
 // Keyset pagination by id (offset paging on large rows times out); caller sorts deterministically.
 async function getKeyset(base, key, q, size = 200) {
@@ -25,9 +24,8 @@ async function getKeyset(base, key, q, size = 200) {
 async function getAll(base, key, q) {
   const out = [];
   for (let from = 0; ; from += PAGE) {
-    const res = await fetch(`${base}/rest/v1/${q}`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + PAGE - 1}` } });
-    if (!res.ok) throw new Error(`${q.split("?")[0]}: HTTP ${res.status}`);
-    const b = await res.json(); out.push(...b); if (b.length < PAGE) break;
+    const b = await restFetch(`${base}/rest/v1/${q}`, { headers: { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + PAGE - 1}` } }, { label: q.split("?")[0] });
+    out.push(...b); if (b.length < PAGE) break;
   }
   return out;
 }
