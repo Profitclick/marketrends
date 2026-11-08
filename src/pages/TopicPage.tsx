@@ -59,8 +59,8 @@ const TopicPage = () => {
         .order("relevance_score", { ascending: false })
         .limit(60);
       const arts: Article[] = (at || [])
-        .map((r: any) => r.articles)
-        .filter((a: any) => a && a.published);
+        .map((r) => r.articles)
+        .filter((a) => a && a.published);
       const sortedNew = [...arts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       // Hero
@@ -87,7 +87,7 @@ const TopicPage = () => {
           .in("article_id", articleIds)
           .limit(200);
         const counts = new Map<string, { ent: RelatedEntity; count: number }>();
-        (ae || []).forEach((r: any) => {
+        (ae || []).forEach((r) => {
           const e = r.entities;
           if (!e) return;
           const cur = counts.get(e.id);

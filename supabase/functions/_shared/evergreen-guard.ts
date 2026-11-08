@@ -95,7 +95,7 @@ export async function evergreenGuard(
   let v;
   try {
     v = await evaluateDuplicate(supabase, apiKey, cand);
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     return { decision: "REVIEW_REQUIRED", barrier: "semantic_unavailable", reason: `semantic check failed: ${String(e.message).slice(0, 120)}`, match: null };
   }
   const top = (v.candidates || [])[0];

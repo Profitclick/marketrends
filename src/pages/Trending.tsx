@@ -119,7 +119,7 @@ const Trending = () => {
           .or(`article_id.in.(${ids.join(",")}),related_article_id.in.(${ids.join(",")})`)
           .limit(2000);
         const counts = new Map<string, number>();
-        ((rels as any) || []).forEach((r: any) => {
+        ((rels as any) || []).forEach((r) => {
           if (ids.includes(r.article_id)) counts.set(r.article_id, (counts.get(r.article_id) || 0) + 1);
           if (ids.includes(r.related_article_id))
             counts.set(r.related_article_id, (counts.get(r.related_article_id) || 0) + 1);

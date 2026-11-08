@@ -5,7 +5,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { embedBatch } from "../_shared/semantic.ts";
 
-type Cfg = { table: string; select: string; text: (r: any) => string; filter?: (q: any) => any };
+type Cfg = { table: string; select: string; text: (r) => string; filter?: (q) => any };
 
 const TABLES: Cfg[] = [
   {
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         if (error) { result[cfg.table] = { embedded, remaining: -1, error: error.message }; break; }
         if (!rows?.length) break;
 
-        const texts = rows.map((r: any) => cfg.text(r) || "n/a");
+        const texts = rows.map((r) => cfg.text(r) || "n/a");
         try {
           const vectors = await embedBatch(texts, key);
           const now = new Date().toISOString();
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
               .eq("id", (rows[i] as any).id);
           }
           embedded += rows.length;
-        } catch (e: any) {
+        } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
           result[cfg.table] = { embedded, remaining: -1, error: String(e?.message || e).slice(0, 300) };
           break;
         }
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ result, totalRemaining, complete: totalRemaining === 0 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

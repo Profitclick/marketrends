@@ -88,7 +88,7 @@ Returner JSON:
         const schema = {
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: (out.faq || []).map((f: any) => ({
+          mainEntity: (out.faq || []).map((f) => ({
             "@type": "Question", name: f.q,
             acceptedAnswer: { "@type": "Answer", text: f.a },
           })),
@@ -109,7 +109,7 @@ Returner JSON:
     return new Response(JSON.stringify({ generated, errors, pending: pending.length, verdicts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

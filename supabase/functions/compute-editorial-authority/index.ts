@@ -98,11 +98,11 @@ Deno.serve(async (req) => {
     ]);
 
     const linkCount = new Map<string, number>();
-    (links || []).forEach((l: any) => linkCount.set(l.target_slug, (linkCount.get(l.target_slug) || 0) + 1));
+    (links || []).forEach((l) => linkCount.set(l.target_slug, (linkCount.get(l.target_slug) || 0) + 1));
     const topicCount = new Map<string, number>();
-    (at || []).forEach((r: any) => topicCount.set(r.article_id, (topicCount.get(r.article_id) || 0) + 1));
+    (at || []).forEach((r) => topicCount.set(r.article_id, (topicCount.get(r.article_id) || 0) + 1));
     const entityCount = new Map<string, number>();
-    (ae || []).forEach((r: any) => entityCount.set(r.article_id, (entityCount.get(r.article_id) || 0) + 1));
+    (ae || []).forEach((r) => entityCount.set(r.article_id, (entityCount.get(r.article_id) || 0) + 1));
 
     let updated = 0;
     for (const a of articles || []) {

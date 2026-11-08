@@ -38,8 +38,8 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
       const def = await sb.from("cluster_definitions").select("guide_categories").eq("slug", cluster.slug).maybeSingle();
       const guideCats: string[] = def.data?.guide_categories || [];
       const seeds = await sb.from("cluster_seed_nodes").select("node_type, node_id").eq("cluster_slug", cluster.slug).limit(2000);
-      const seedEntityIds = (seeds.data || []).filter((s: any) => s.node_type === "entity").map((s: any) => s.node_id);
-      const seedTopicIds = (seeds.data || []).filter((s: any) => s.node_type === "topic").map((s: any) => s.node_id);
+      const seedEntityIds = (seeds.data || []).filter((s) => s.node_type === "entity").map((s) => s.node_id);
+      const seedTopicIds = (seeds.data || []).filter((s) => s.node_type === "topic").map((s) => s.node_id);
       const a = await sb.from("articles").select("*, article_clusters!inner(cluster_slug)")
         .eq("article_clusters.cluster_slug", cluster.slug).eq("published", true)
         .order("created_at", { ascending: false }).limit(8);
@@ -59,8 +59,8 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
       setTopics(t.data || []);
       setEntities(e.data || []);
       setGuides(g.data || []);
-      setKnowledge((k.data || []).filter((x: any) => top.has(x.topic_id) || ent.has(x.entity_id)).slice(0, 6));
-      setComparisons((c.data || []).filter((x: any) => ent.has(x.entity_a_id) || ent.has(x.entity_b_id)).slice(0, 6));
+      setKnowledge((k.data || []).filter((x) => top.has(x.topic_id) || ent.has(x.entity_id)).slice(0, 6));
+      setComparisons((c.data || []).filter((x) => ent.has(x.entity_a_id) || ent.has(x.entity_b_id)).slice(0, 6));
       setStats(s.data);
       setOpps([]);
     })();
@@ -145,7 +145,7 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
               <h3 className="font-serif text-xl mb-3">{title}</h3>
               <ul className="space-y-2">
                 {items.length === 0 && <li className="text-sm text-muted-foreground">Ingen ennå.</li>}
-                {items.map((i: any) => (
+                {items.map((i) => (
                   <li key={i.slug}><Link to={`${base}${i.slug}`} className="hover:underline">{i.title}</Link></li>
                 ))}
               </ul>

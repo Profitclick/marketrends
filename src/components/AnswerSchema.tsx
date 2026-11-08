@@ -33,9 +33,9 @@ export const AnswerSchema = ({ type, url, name, description, data = {} }: Props)
       publisher: { "@type": "Organization", name: "Marketrends", url: BASE },
       mainEntityOfPage: url,
       image: data.image_url,
-      about: (data.topics || []).map((t: any) => ({ "@type": "Thing", name: t.name, url: `${BASE}/topic/${t.slug}` })),
-      mentions: (data.entities || []).map((e: any) => ({ "@type": "Thing", name: e.name, url: `${BASE}/entity/${e.slug}` })),
-      citation: (data.sources || []).map((s: any) => ({ "@type": "CreativeWork", name: s.title || s.name, url: s.url })),
+      about: (data.topics || []).map((t) => ({ "@type": "Thing", name: t.name, url: `${BASE}/topic/${t.slug}` })),
+      mentions: (data.entities || []).map((e) => ({ "@type": "Thing", name: e.name, url: `${BASE}/entity/${e.slug}` })),
+      citation: (data.sources || []).map((s) => ({ "@type": "CreativeWork", name: s.title || s.name, url: s.url })),
       speakable,
     };
   } else if (type === "knowledge") {
@@ -104,7 +104,7 @@ export const AnswerSchema = ({ type, url, name, description, data = {} }: Props)
       mainEntity: data.faq
         ? {
             "@type": "FAQPage",
-            mainEntity: (data.faq || []).map((f: any) => ({
+            mainEntity: (data.faq || []).map((f) => ({
               "@type": "Question",
               name: f.q,
               acceptedAnswer: { "@type": "Answer", text: f.a },

@@ -409,7 +409,7 @@ serve(async (req) => {
       const { data: urlTwin } = await supabase
         .from('articles').select('id,source_url')
         .ilike('source_url', `%${normalized.split('/').pop() || normalized}%`).limit(5);
-      if ((urlTwin || []).some((a: any) => normalizeUrl(a.source_url) === normalized)) {
+      if ((urlTwin || []).some((a) => normalizeUrl(a.source_url) === normalized)) {
         totalSemanticDupes++;
         continue;
       }

@@ -24,8 +24,8 @@ export const LinkGraphPanel = () => {
     const topTargets = Array.from(tally.values()).sort((a, b) => b.count - a.count).slice(0, 20);
 
     const { data: articles } = await sb.from("articles").select("slug, title").eq("published", true).limit(500);
-    const linkedSlugs = new Set((links || []).filter((l: any) => l.target_type === "article").map((l: any) => l.target_slug));
-    const orphans = (articles || []).filter((a: any) => !linkedSlugs.has(a.slug)).slice(0, 20);
+    const linkedSlugs = new Set((links || []).filter((l) => l.target_type === "article").map((l) => l.target_slug));
+    const orphans = (articles || []).filter((a) => !linkedSlugs.has(a.slug)).slice(0, 20);
 
     setStats({ total: count || 0, topTargets, orphans });
   };

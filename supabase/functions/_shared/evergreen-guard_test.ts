@@ -20,13 +20,13 @@ function mockDb(matches: any[] = []) {
     let rows = [...(ROWS[table] || [])];
     const b: any = {
       select: () => b,
-      eq: (c: string, v: any) => { rows = rows.filter((r: any) => c === "published" || r[c] === v); return b; },
+      eq: (c: string, v: any) => { rows = rows.filter((r) => c === "published" || r[c] === v); return b; },
       ilike: (_c: string, v: string) => { rows = rows.filter((r) => r.title.toLowerCase() === v.toLowerCase()); return b; },
       limit: () => Promise.resolve({ data: rows }),
       maybeSingle: () => Promise.resolve({ data: rows[0] ?? null }),
       insert: () => { writes.push(table); return Promise.resolve({}); },
       upsert: () => { writes.push(table); return Promise.resolve({}); },
-      then: (r: any) => r({ data: rows }),
+      then: (r) => r({ data: rows }),
     };
     return b;
   };

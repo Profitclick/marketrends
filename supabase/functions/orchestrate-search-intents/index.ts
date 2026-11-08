@@ -20,7 +20,7 @@ async function invoke(base: string, key: string, fn: string, body: any = {}) {
     const text = await res.text();
     try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
     catch { return { ok: res.ok, status: res.status, data: text }; }
-  } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_)); return { ok: false, error: String(e?.message || e) }; }
 }
 
 Deno.serve(async (req) => {
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       .order("priority_score", { ascending: false }).limit(maxPillars);
     if (pillarIds?.length) {
       const s2a = await invoke(base, key, "generate-search-intent-page", {
-        ids: pillarIds.map((r: any) => r.id).slice(0, perBatch),
+        ids: pillarIds.map((r) => r.id).slice(0, perBatch),
       });
       report.steps.push({ step: "generate-pillars", ...s2a });
     }
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     // Step 2c — orphan repair: every supporting intent must belong to a pillar
     const { data: allPillars } = await supabase.from("search_intents")
       .select("id, search_cluster").eq("is_pillar", true);
-    const pillarByCluster = new Map((allPillars || []).map((p: any) => [p.search_cluster, p.id]));
+    const pillarByCluster = new Map((allPillars || []).map((p) => [p.search_cluster, p.id]));
     let orphansFixed = 0;
     for (const [cluster, pid] of pillarByCluster) {
       if (!cluster) continue;
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       supabase.from("search_intents").select("priority_score").in("content_status", ["pending","published"]).limit(1000),
     ]);
     const avg = (rows: any[] | null, k: string) => {
-      const vals = (rows || []).map((r: any) => Number(r[k] || 0)).filter((n: number) => !isNaN(n));
+      const vals = (rows || []).map((r) => Number(r[k] || 0)).filter((n: number) => !isNaN(n));
       return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
     };
 
@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(report), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     await finishRun(supabase, runId, "failed", {}, e.message);
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },

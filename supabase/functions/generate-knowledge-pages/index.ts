@@ -60,14 +60,14 @@ Deno.serve(async (req) => {
 
     const { data: existing } = await supabase
       .from("knowledge_pages").select("topic_id").not("topic_id", "is", null);
-    const done = new Set((existing || []).map((e: any) => e.topic_id));
+    const done = new Set((existing || []).map((e) => e.topic_id));
 
     const dryRun = body.dry_run === true;
     const allowUpdate = body.allow_update === true;
     const cache: any = {};
     const verdicts: any[] = [];
     const pending: any[] = [];
-    const scan = topics.filter((t: any) => dryRun || !done.has(t.id)).slice(0, dryRun ? Math.min(Number(body.limit) || 10, 20) : limit * 3);
+    const scan = topics.filter((t) => dryRun || !done.has(t.id)).slice(0, dryRun ? Math.min(Number(body.limit) || 10, 20) : limit * 3);
     for (const t of scan) {
       const slug = `hva-er-${slugify(t.name)}`;
       const input = { type: "knowledge" as const, slug, title: `Hva er ${t.name}?`, text: `${t.name}. ${t.description || ""}`, topics: [t.slug] };
@@ -100,7 +100,7 @@ Returner JSON med feltene:
         const schema = {
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: (out.faq || []).map((f: any) => ({
+          mainEntity: (out.faq || []).map((f) => ({
             "@type": "Question", name: f.q,
             acceptedAnswer: { "@type": "Answer", text: f.a },
           })),
@@ -123,7 +123,7 @@ Returner JSON med feltene:
     return new Response(JSON.stringify({ generated, errors, eligible: topics.length, pending: pending.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

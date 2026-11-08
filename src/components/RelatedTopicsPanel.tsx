@@ -22,7 +22,7 @@ export const RelatedTopicsPanel = ({ topicId }: { topicId: string }) => {
         .limit(8);
       if (cancelled) return;
       const list = (data || [])
-        .map((r: any) => r.topics)
+        .map((r) => r.topics)
         .filter(Boolean);
       setTopics(list);
     })();

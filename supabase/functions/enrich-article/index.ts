@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
     // relevant entity WITH explicit textual evidence. Everything else is
     // rejected with a logged reason instead of fragmenting the vocabulary.
     const { data: stopRows } = await supabase.from("graph_stopterms").select("term");
-    const stopTerms = new Set((stopRows || []).map((r: any) => String(r.term).toLowerCase()));
+    const stopTerms = new Set((stopRows || []).map((r) => String(r.term).toLowerCase()));
 
     const articleText = `${article.title}\n${article.content || ""}`.toLowerCase();
     const esc = (s: string) => s.replace(/[.^$*+?()[\]{}|\\-]/g, "\\$&");

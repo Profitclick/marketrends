@@ -18,9 +18,9 @@ Deno.serve(async (req) => {
   <url><loc>${SITE}${path}</loc><lastmod>${new Date(mod).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`;
 
   const urls = [
-    ...(k || []).map((r: any) => url(`/knowledge/${r.slug}`, r.updated_at)),
-    ...(c || []).map((r: any) => url(`/compare/${r.slug}`, r.updated_at)),
-    ...(g || []).map((r: any) => url(`/guide/${r.slug}`, r.updated_at)),
+    ...(k || []).map((r) => url(`/knowledge/${r.slug}`, r.updated_at)),
+    ...(c || []).map((r) => url(`/compare/${r.slug}`, r.updated_at)),
+    ...(g || []).map((r) => url(`/guide/${r.slug}`, r.updated_at)),
     url("/academy", new Date().toISOString()),
     url("/tools", new Date().toISOString()),
   ].join("");
