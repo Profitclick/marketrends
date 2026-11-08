@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     const allowUpdate = body.allow_update === true;
     const cache: GuardCache = {};
     const verdicts: GuardVerdict[] = [];
-    const pending: (typeof SEED_GUIDES)[number] & { slug: string }[] = [];
+    const pending: ((typeof SEED_GUIDES)[number] & { slug: string })[] = [];
     for (const g of SEED_GUIDES.map(g => ({ ...g, slug: slugify(g.title) }))) {
       const input = { type: "guide" as const, slug: g.slug, title: g.title, text: `${g.title}. Kategori: ${g.category}.`, topics: [g.category] };
       const r = await evergreenGuard(supabase, key, input, { allowUpdate, cache });

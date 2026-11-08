@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     const allowUpdate = body.allow_update === true;
     const cache: GuardCache = {};
     const verdicts: GuardVerdict[] = [];
-    const pending: (typeof SEED_PAIRS)[number] & { slug: string }[] = [];
+    const pending: ((typeof SEED_PAIRS)[number] & { slug: string })[] = [];
     for (const p of SEED_PAIRS.map(p => ({ ...p, slug: `${slugify(p.a)}-vs-${slugify(p.b)}` }))) {
       const input = { type: "comparison" as const, slug: p.slug, title: `${p.a} vs ${p.b}: En faglig sammenligning`,
         text: `Sammenligning av ${p.a} og ${p.b}.`, entities: [slugify(p.a), slugify(p.b)],
