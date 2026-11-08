@@ -13,6 +13,15 @@ async function get(base, key, q) {
   if (!res.ok) throw new Error(`${q.split("?")[0]}: HTTP ${res.status}`);
   return res.json();
 }
+// Keyset pagination by id (offset paging on large rows times out); caller sorts deterministically.
+async function getKeyset(base, key, q, size = 200) {
+  const out = [];
+  for (let last = null; ; ) {
+    const b = await get(base, key, `${q}&order=id.asc&limit=${size}${last ? `&id=gt.${last}` : ""}`);
+    out.push(...b); if (b.length < size) break; last = b[b.length - 1].id;
+  }
+  return out;
+}
 async function getAll(base, key, q) {
   const out = [];
   for (let from = 0; ; from += PAGE) {
@@ -40,7 +49,7 @@ export async function prerender(outDir, base, key, io = fs) {
   const pub = "published=eq.true";
 
   // Same eligibility as sitemap-articles-*.xml (published, deduped by slug); no count cap.
-  const articles = dedupe(await getAll(base, key, `articles?select=slug,title,meta_description,content,category,image_url,source_name,source_url,created_at,updated_at,article_topics(topics(slug,name))&${pub}&order=created_at.desc,id.asc`));
+  const articles = dedupe((await getKeyset(base, key, `articles?select=id,slug,title,meta_description,content,category,image_url,source_name,source_url,created_at,updated_at,article_topics(topics(slug,name))&${pub}`)).sort((a, b) => (b.created_at > a.created_at ? 1 : b.created_at < a.created_at ? -1 : a.id < b.id ? -1 : 1)));
   const latest = articles.slice(0, 40);
   const clusters = await get(base, key, "cluster_definitions?select=slug,name&order=slug");
 
