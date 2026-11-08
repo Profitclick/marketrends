@@ -26,7 +26,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck app
         run: npx tsc -p tsconfig.app.json --noEmit
@@ -49,7 +49,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
@@ -68,37 +68,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Build
         run: npm run build
-
-  lockfile:
-    name: Refresh lockfile
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Refresh package lock
-        run: npm install --package-lock-only --no-audit --no-fund
-
-      - name: Commit refreshed lockfile
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if git diff --cached --quiet; then
-            echo "Lockfile already synchronized"
-            exit 0
-          fi
-          git commit -m "chore: refresh package lock"
-          git push
