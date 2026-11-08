@@ -223,7 +223,7 @@ Gi ai_quality_score (0.0-1.0) basert på faglig verdi, norsk relevans og redaksj
 
       if (response.status === 402) {
         console.log("⚠️ AI credits depleted (402) – skipping remaining articles");
-        return { _status: "credits_depleted" };
+        return { _status: "credits_depleted" } as AiArticle;
       }
 
       if (!response.ok) {
@@ -263,7 +263,7 @@ Gi ai_quality_score (0.0-1.0) basert på faglig verdi, norsk relevans og redaksj
   return null;
 }
 
-async function logToSystem(supabase: Db, logLevel: string, logType: string, message: string, context?: Record<string, unknown>, articleId?: string, feedId?: string) {
+async function logToSystem(supabase: Db, logLevel: string, logType: string, message: string, context?: Record<string, unknown> | null, articleId?: string, feedId?: string) {
   try {
     await supabase.from('system_logs').insert({
       log_level: logLevel, log_type: logType, message,
@@ -473,7 +473,7 @@ serve(async (req) => {
           title: aiResult.title,
           text: aiResult.content || '',
           entities: aiResult.tags || [],
-          topics: [aiResult.category].filter(Boolean),
+          topics: [aiResult.category].filter(Boolean) as string[],
           event: aiResult.title,
           source_url: item.link,
           published_at: new Date().toISOString(),

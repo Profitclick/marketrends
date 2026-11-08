@@ -2,13 +2,17 @@
 // POST { table?: string, batch?: number, all?: boolean }
 // Without `table`, walks every configured table once with `batch` rows each.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import type { Db } from "../_shared/db.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { embedBatch } from "../_shared/semantic.ts";
 
-type EmbedRow = { id: string; [k: string]: unknown };
-type Query = ReturnType<ReturnType<ReturnType<Db["from"]>["select"]>["is"]>;
-type Cfg = { table: string; select: string; text: (r: EmbedRow) => string; filter?: (q: Query) => Query };
+type EmbedRow = {
+  id: string; title?: string | null; category?: string | null; tags?: string[] | null;
+  meta_description?: string | null; content?: string | null; summary?: string | null; body?: string | null;
+  entity_a?: string | null; entity_b?: string | null; keyword?: string | null; search_cluster?: string | null;
+  meta?: { summary?: string; content?: string } | null; geo_blocks?: { quick_answer?: string } | null;
+};
+type Filterable = { eq: (column: string, value: unknown) => Filterable };
+type Cfg = { table: string; select: string; text: (r: EmbedRow) => string; filter?: (q: Filterable) => Filterable };
 
 const TABLES: Cfg[] = [
   {
@@ -55,7 +59,7 @@ Deno.serve(async (req) => {
       let embedded = 0;
       for (let p = 0; p < passes; p++) {
         let q = supabase.from(cfg.table).select(cfg.select).is("embedding", null).limit(batch);
-        if (cfg.filter) q = cfg.filter(q);
+        if (cfg.filter) q = cfg.filter(q as unknown as Filterable) as unknown as typeof q;
         const { data: rows, error } = await q;
         if (error) { result[cfg.table] = { embedded, remaining: -1, error: error.message }; break; }
         if (!rows?.length) break;
