@@ -1,5 +1,11 @@
 # Database recovery
 
+## Phase 7D.1
+- [x] Normalize HTML-encoded article image URLs at ingestion and repair affected existing URLs without generation: 897 repaired, 0 encoded URLs remain; ingestion deployed.
+- [x] Verify dashboard loads only on demand: existing React.lazy boundary and separate production chunk confirmed; browser requested no Dashboard module on public pages. No loading code change needed.
+- [x] Remove duplicate sitewide JSON-LD while retaining route-specific schemas: homepage, vertical and article each have exactly one Organization and WebSite; NewsArticle/BreadcrumbList retained.
+- [x] Run targeted tests and browser checks: 7 tests passed, repaired TU image loaded at natural width 1058, mobile has no horizontal overflow, no runtime errors, build OK. GSC and schedules untouched. Authenticated dashboard check unavailable because the requesting user has no matching auth account; signed-out redirect verified.
+
 ## Phase 7C.1
 - [x] Reconcile the live news sitemap against exact eligible database slugs at a fixed audit timestamp.
 - [x] Verify existing structured-data cleanup is already live; request republishing after fixing both critical access findings.

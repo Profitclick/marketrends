@@ -4,6 +4,7 @@ import { startRun, finishRun } from "../_shared/run-lock.ts";
 import { evaluateDuplicate, recordVerdict } from "../_shared/dupe.ts";
 import { normalizeUrl } from "../_shared/semantic.ts";
 import { ingestionMode } from "./mode.ts";
+import { normalizeImageUrl } from "./image-url.ts";
 
 
 const corsHeaders = {
@@ -142,7 +143,7 @@ function parseRSS(xmlText: string, maxItems: number = 5): RSSItem[] {
                      x.match(/<enclosure[^>]*url="([^"]+)"/i)?.[1] ||
                      x.match(/<image>[\s\S]*?<url>([^<]+)<\/url>/i)?.[1] || '';
 
-    if (title && link) items.push({ title, link, description, pubDate, content, imageUrl });
+    if (title && link) items.push({ title, link, description, pubDate, content, imageUrl: normalizeImageUrl(imageUrl) ?? undefined });
   }
   return items;
 }
@@ -437,7 +438,7 @@ serve(async (req) => {
 
       consecutiveFailures = 0;
       const finalSlug = generateSlug(aiResult.title);
-      const imageUrl = item.imageUrl || null;
+      const imageUrl = normalizeImageUrl(item.imageUrl);
 
       let qualityScore: number;
       let scoreSource: string;

@@ -1,5 +1,5 @@
 import { Helmet } from "react-helmet";
-import { generateOrganizationSchema, generateWebsiteSchema, generateBreadcrumbSchema } from "@/utils/seo";
+import { generateBreadcrumbSchema } from "@/utils/seo";
 
 interface SEOHeadProps {
   title: string;
@@ -117,14 +117,7 @@ export const SEOHead = ({
       {/* Publisher */}
       <link rel="publisher" href={SITE_URL} />
       
-      {/* Structured Data */}
-      <script type="application/ld+json">
-        {JSON.stringify(generateOrganizationSchema())}
-      </script>
-      
-      <script type="application/ld+json">
-        {JSON.stringify(generateWebsiteSchema())}
-      </script>
+      {/* Sitewide Organization and WebSite schemas live once in index.html. */}
       
       {breadcrumbs && breadcrumbs.length > 0 && (
         <script type="application/ld+json">
