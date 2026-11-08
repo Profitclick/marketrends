@@ -37,7 +37,7 @@ export const TopicHeatmap = () => {
       setRows(data || []);
 
       // Aggregate guide/knowledge/comparison/opportunity counts by topic name (approximate via category fallback if no topic link)
-      const ids = (data || []).map((r) => r.id);
+      const ids = (data || []).map((r: any) => r.id);
       if (!ids.length) return;
       const [g, k, c, o] = await Promise.all([
         sb.from("guides").select("topic_id"),
@@ -47,10 +47,10 @@ export const TopicHeatmap = () => {
       ]);
       const map: Record<string, { g: number; k: number; c: number; opp: number }> = {};
       for (const id of ids) map[id] = { g: 0, k: 0, c: 0, opp: 0 };
-      (g.data || []).forEach((r) => r.topic_id && map[r.topic_id] && map[r.topic_id].g++);
-      (k.data || []).forEach((r) => r.topic_id && map[r.topic_id] && map[r.topic_id].k++);
-      (c.data || []).forEach((r) => r.topic_id && map[r.topic_id] && map[r.topic_id].c++);
-      (o.data || []).forEach((r) => {
+      (g.data || []).forEach((r: any) => r.topic_id && map[r.topic_id] && map[r.topic_id].g++);
+      (k.data || []).forEach((r: any) => r.topic_id && map[r.topic_id] && map[r.topic_id].k++);
+      (c.data || []).forEach((r: any) => r.topic_id && map[r.topic_id] && map[r.topic_id].c++);
+      (o.data || []).forEach((r: any) => {
         if (!r.topic_id || !map[r.topic_id]) return;
         map[r.topic_id].opp = Math.max(map[r.topic_id].opp, r.opportunity_score || 0);
       });

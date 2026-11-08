@@ -3,7 +3,6 @@ import {
   embed, headlineSimilarity, overlapRatio, normalizeUrl, compositeScore,
   DUPLICATE_THRESHOLD, MERGE_THRESHOLD, logDecision, type DupeSignals,
 } from "./semantic.ts";
-import type { Db } from "./db.ts";
 
 export type Candidate = {
   type: string;            // article | intent | knowledge | guide | comparison | report
@@ -24,14 +23,7 @@ export type DupeVerdict = {
   signals: DupeSignals | null;
   match: { content_type: string; ref: string; title: string; similarity: number } | null;
   embedding: number[];
-  candidates: MatchRow[];
-};
-
-export type MatchRow = { content_type: string; ref: string; title: string; similarity: number };
-
-type EnrichedRow = {
-  title?: string | null; source_url?: string | null; canonical_url?: string | null;
-  created_at?: string | null; tags?: string[] | null; category?: string | null;
+  candidates: any[];
 };
 
 const TABLE_BY_TYPE: Record<string, { table: string; slugCol: string; titleCol: string }> = {
@@ -43,23 +35,23 @@ const TABLE_BY_TYPE: Record<string, { table: string; slugCol: string; titleCol: 
   intent: { table: "search_intents", slugCol: "target_slug", titleCol: "keyword" },
 };
 
-async function enrichMatch(supabase: Db, m: MatchRow): Promise<EnrichedRow> {
+async function enrichMatch(supabase: any, m: any) {
   const cfg = TABLE_BY_TYPE[m.content_type];
   if (!cfg) return {};
   const cols = cfg.table === "articles"
     ? "id,title,source_url,created_at,tags,category"
     : `id,${cfg.titleCol},created_at`;
   const { data } = await supabase.from(cfg.table).select(cols).eq(cfg.slugCol, m.ref).maybeSingle();
-  return (data || {}) as EnrichedRow;
+  return data || {};
 }
 
 export async function evaluateDuplicate(
-  supabase: Db, apiKey: string, c: Candidate,
+  supabase: any, apiKey: string, c: Candidate,
 ): Promise<DupeVerdict> {
   const embedding = await embed(`${c.title}\n\n${c.text}`, apiKey);
 
   const { data: matches, error } = await supabase.rpc("match_editorial_content", {
-    query_embedding: embedding,
+    query_embedding: embedding as any,
     match_threshold: 0.72,
     match_count: 8,
     exclude_ref: `${c.type}:${c.ref}`,
@@ -70,8 +62,8 @@ export async function evaluateDuplicate(
   let bestSignals: DupeSignals | null = null;
   let bestScore = 0;
 
-  for (const m of (matches || []) as MatchRow[]) {
-    const row = await enrichMatch(supabase, m);
+  for (const m of matches || []) {
+    const row: any = await enrichMatch(supabase, m);
     const matchTitle = m.title || row.title || "";
     const hoursApart = c.published_at && row.created_at
       ? Math.abs(new Date(c.published_at).getTime() - new Date(row.created_at).getTime()) / 36e5
@@ -81,7 +73,7 @@ export async function evaluateDuplicate(
       semantic: Number(m.similarity) || 0,
       headline: headlineSimilarity(c.title, matchTitle),
       entity_overlap: overlapRatio(c.entities || [], row.tags || []),
-      topic_overlap: overlapRatio(c.topics || [], [row.category].filter(Boolean) as string[]),
+      topic_overlap: overlapRatio(c.topics || [], [row.category].filter(Boolean)),
       event_similarity: c.event ? headlineSimilarity(c.event, matchTitle) : 0,
       same_source_url: !!(c.source_url && row.source_url && normalizeUrl(c.source_url) === normalizeUrl(row.source_url)),
       same_canonical_url: !!(c.canonical_url && row.canonical_url && normalizeUrl(c.canonical_url) === normalizeUrl(row.canonical_url)),
@@ -98,11 +90,11 @@ export async function evaluateDuplicate(
   const decision: DupeVerdict["decision"] =
     bestScore >= DUPLICATE_THRESHOLD ? "duplicate" : bestScore >= MERGE_THRESHOLD ? "merge" : "unique";
 
-  return { decision, score: bestScore, signals: bestSignals, match: best, embedding, candidates: (matches || []) as MatchRow[] };
+  return { decision, score: bestScore, signals: bestSignals, match: best, embedding, candidates: matches || [] };
 }
 
 export async function recordVerdict(
-  supabase: Db, c: Candidate, v: DupeVerdict, action: string,
+  supabase: any, c: Candidate, v: DupeVerdict, action: string,
 ) {
   await logDecision(supabase, {
     candidate_type: c.type,

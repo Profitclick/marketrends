@@ -2,7 +2,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { evergreenGuard, logGuard, type EvergreenAiOutput, type GuardCache, type GuardVerdict } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -12,7 +12,7 @@ const slugify = (s: string) =>
     .replace(/[æå]/g, "a").replace(/ø/g, "o")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-async function aiJson(prompt: string, key: string): Promise<EvergreenAiOutput> {
+async function aiJson(prompt: string, key: string): Promise<any> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -54,9 +54,9 @@ Deno.serve(async (req) => {
 
     const dryRun = body.dry_run === true;
     const allowUpdate = body.allow_update === true;
-    const cache: GuardCache = {};
-    const verdicts: GuardVerdict[] = [];
-    const pending: ((typeof SEED_PAIRS)[number] & { slug: string })[] = [];
+    const cache: any = {};
+    const verdicts: any[] = [];
+    const pending: any[] = [];
     for (const p of SEED_PAIRS.map(p => ({ ...p, slug: `${slugify(p.a)}-vs-${slugify(p.b)}` }))) {
       const input = { type: "comparison" as const, slug: p.slug, title: `${p.a} vs ${p.b}: En faglig sammenligning`,
         text: `Sammenligning av ${p.a} og ${p.b}.`, entities: [slugify(p.a), slugify(p.b)],
@@ -88,7 +88,7 @@ Returner JSON:
         const schema = {
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: (out.faq || []).map((f) => ({
+          mainEntity: (out.faq || []).map((f: any) => ({
             "@type": "Question", name: f.q,
             acceptedAnswer: { "@type": "Answer", text: f.a },
           })),
@@ -109,7 +109,7 @@ Returner JSON:
     return new Response(JSON.stringify({ generated, errors, pending: pending.length, verdicts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

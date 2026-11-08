@@ -29,9 +29,9 @@ export const MoreAboutTopic = ({ articleId }: { articleId: string }) => {
         .eq("topic_id", t.id)
         .limit(20);
       const arts = (rows || [])
-        .map((r) => r.articles)
-        .filter((a) => a && a.published && a.id !== articleId)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .map((r: any) => r.articles)
+        .filter((a: any) => a && a.published && a.id !== articleId)
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5);
       if (cancelled) return;
       setArticles(arts);

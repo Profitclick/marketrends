@@ -64,9 +64,9 @@ export const SearchIntentPanel = () => {
       const v = arr.map((r) => Number(r[k] || 0)).filter((n) => !isNaN(n));
       return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0;
     };
-    const clusters = new Set((pub || []).map((r) => r.search_cluster).filter(Boolean));
-    const pillarsPub = (pub || []).filter((r) => r.is_pillar).length;
-    const embedded = (pub || []).filter((r) => r.embedded_at).length;
+    const clusters = new Set((pub || []).map((r: any) => r.search_cluster).filter(Boolean));
+    const pillarsPub = (pub || []).filter((r: any) => r.is_pillar).length;
+    const embedded = (pub || []).filter((r: any) => r.embedded_at).length;
 
     // Duplicate engine telemetry
     const [dupRes, mergeRes, orphanRes] = await Promise.all([
@@ -101,7 +101,7 @@ export const SearchIntentPanel = () => {
       if (error) throw error;
       toast.success(`${name}: ${JSON.stringify(data).slice(0, 140)}`);
       await load();
-    } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_)); toast.error(e.message); } finally { setBusy(null); }
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(null); }
   };
 
   const clusters = useMemo(

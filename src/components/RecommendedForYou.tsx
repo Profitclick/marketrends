@@ -50,14 +50,14 @@ export const RecommendedForYou = ({ limit = 4, excludeId }: Props) => {
           .eq("article_id", lastId)
           .order("similarity", { ascending: false })
           .limit(20);
-        const relIds = (rels || []).map((r) => r.related_article_id).filter(Boolean);
+        const relIds = (rels || []).map((r: any) => r.related_article_id).filter(Boolean);
         if (relIds.length) {
           const { data } = await supabase
             .from("articles")
             .select("id, slug, title, category, image_url, meta_description, created_at, published")
             .in("id", relIds)
             .eq("published", true);
-          picked = (data || []).filter((a) => !seen.has(a.slug) && a.id !== excludeId);
+          picked = (data || []).filter((a: any) => !seen.has(a.slug) && a.id !== excludeId);
         }
       }
 
@@ -70,7 +70,7 @@ export const RecommendedForYou = ({ limit = 4, excludeId }: Props) => {
           .order("created_at", { ascending: false })
           .limit(limit * 3);
         const extras = (data || []).filter(
-          (a) => !seen.has(a.slug) && a.id !== excludeId && !picked.find((p) => p.id === a.id),
+          (a: any) => !seen.has(a.slug) && a.id !== excludeId && !picked.find((p) => p.id === a.id),
         );
         picked = [...picked, ...extras];
       }
@@ -83,7 +83,7 @@ export const RecommendedForYou = ({ limit = 4, excludeId }: Props) => {
           .order("created_at", { ascending: false })
           .limit(limit * 3);
         const extras = (data || []).filter(
-          (a) => !seen.has(a.slug) && a.id !== excludeId && !picked.find((p) => p.id === a.id),
+          (a: any) => !seen.has(a.slug) && a.id !== excludeId && !picked.find((p) => p.id === a.id),
         );
         picked = [...picked, ...extras];
       }

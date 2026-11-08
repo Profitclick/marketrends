@@ -126,7 +126,7 @@ const Dashboard = () => {
       if (error) throw error;
       const r = data as { enriched: number; skipped: number; failed: number; total: number };
       toast.success(`Backfill ferdig: ${r.enriched} beriket, ${r.skipped} hoppet over, ${r.failed} feilet (${r.total} totalt).`);
-    } catch (error_: unknown) { const error = error_ instanceof Error ? error_ : new Error(String(error_));
+    } catch (error: any) {
       console.error("Backfill error:", error);
       toast.error(`Feil under backfill: ${error.message || 'ukjent'}`);
     } finally {
@@ -142,7 +142,7 @@ const Dashboard = () => {
       if (error) throw error;
       const r = data as { topics_updated: number; relations: number };
       toast.success(`Ferdig: ${r.topics_updated} temaer oppdatert, ${r.relations} relasjoner.`);
-    } catch (error_: unknown) { const error = error_ instanceof Error ? error_ : new Error(String(error_));
+    } catch (error: any) {
       console.error("Rebuild error:", error);
       toast.error(`Feil ved rebuild: ${error.message || 'ukjent'}`);
     } finally {
@@ -159,7 +159,7 @@ const Dashboard = () => {
       if (error) throw error;
       const r = data as { entities_updated: number; relations_upserted: number };
       toast.success(`Ferdig: ${r.entities_updated} aktører, ${r.relations_upserted} relasjoner.`);
-    } catch (error_: unknown) { const error = error_ instanceof Error ? error_ : new Error(String(error_));
+    } catch (error: any) {
       toast.error(`Feil ved entity-rebuild: ${error.message || 'ukjent'}`);
     } finally {
       setLoadingEntities(false);
@@ -186,7 +186,7 @@ const Dashboard = () => {
       } else {
         toast.success(`${label}: ${r.topicsUpdated || 0} temaer, ${r.entitiesUpdated || 0} aktører.`);
       }
-    } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
+    } catch (e: any) {
       toast.error(`Feil ved ${label}: ${e.message || "ukjent"}`);
     } finally {
       setLoad(false);

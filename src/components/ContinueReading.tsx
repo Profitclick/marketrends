@@ -33,7 +33,7 @@ export const ContinueReading = ({ articleId, category }: Props) => {
         .eq("article_id", articleId)
         .order("similarity_score", { ascending: false })
         .limit(5);
-      const ids = (rels || []).map((r) => r.related_article_id);
+      const ids = (rels || []).map((r: any) => r.related_article_id);
       if (ids.length) {
         const { data: arts } = await supabase
           .from("articles")
@@ -42,7 +42,7 @@ export const ContinueReading = ({ articleId, category }: Props) => {
           .eq("published", true)
           .limit(5);
         const ordered = ids
-          .map((id) => (arts || []).find((a) => a.id === id))
+          .map((id) => (arts || []).find((a: any) => a.id === id))
           .filter(Boolean) as Article[];
         if (ordered[0]) { if (!cancelled) setNext(ordered[0]); return; }
       }

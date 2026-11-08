@@ -31,7 +31,7 @@ export const RelatedEntities = ({ entityId, limit = 8 }: { entityId: string; lim
         .limit(limit);
       if (cancelled) return;
       const mapped = (data || [])
-        .map((r) => r.entities ? { ...r.entities, score: r.score } : null)
+        .map((r: any) => r.entities ? { ...r.entities, score: r.score } : null)
         .filter(Boolean) as Related[];
       setItems(mapped);
     })();

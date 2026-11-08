@@ -5,14 +5,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { embedBatch } from "../_shared/semantic.ts";
 
-type EmbedRow = {
-  id: string; title?: string | null; category?: string | null; tags?: string[] | null;
-  meta_description?: string | null; content?: string | null; summary?: string | null; body?: string | null;
-  entity_a?: string | null; entity_b?: string | null; keyword?: string | null; search_cluster?: string | null;
-  meta?: { summary?: string; content?: string } | null; geo_blocks?: { quick_answer?: string } | null;
-};
-type Filterable = { eq: (column: string, value: unknown) => Filterable };
-type Cfg = { table: string; select: string; text: (r: EmbedRow) => string; filter?: (q: Filterable) => Filterable };
+type Cfg = { table: string; select: string; text: (r: any) => string; filter?: (q: any) => any };
 
 const TABLES: Cfg[] = [
   {
@@ -59,30 +52,29 @@ Deno.serve(async (req) => {
       let embedded = 0;
       for (let p = 0; p < passes; p++) {
         let q = supabase.from(cfg.table).select(cfg.select).is("embedding", null).limit(batch);
-        if (cfg.filter) q = cfg.filter(q as unknown as Filterable) as unknown as typeof q;
+        if (cfg.filter) q = cfg.filter(q);
         const { data: rows, error } = await q;
         if (error) { result[cfg.table] = { embedded, remaining: -1, error: error.message }; break; }
         if (!rows?.length) break;
 
-        const typedRows = rows as unknown as EmbedRow[];
-        const texts = typedRows.map((r) => cfg.text(r) || "n/a");
+        const texts = rows.map((r: any) => cfg.text(r) || "n/a");
         try {
           const vectors = await embedBatch(texts, key);
           const now = new Date().toISOString();
           for (let i = 0; i < rows.length; i++) {
             await supabase.from(cfg.table)
-              .update({ embedding: vectors[i], embedded_at: now })
-              .eq("id", typedRows[i].id);
+              .update({ embedding: vectors[i] as any, embedded_at: now })
+              .eq("id", (rows[i] as any).id);
           }
           embedded += rows.length;
-        } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
+        } catch (e: any) {
           result[cfg.table] = { embedded, remaining: -1, error: String(e?.message || e).slice(0, 300) };
           break;
         }
         if (rows.length < batch) break;
       }
       let cq = supabase.from(cfg.table).select("*", { count: "exact", head: true }).is("embedding", null);
-      if (cfg.filter) cq = cfg.filter(cq as unknown as Filterable) as unknown as typeof cq;
+      if (cfg.filter) cq = cfg.filter(cq);
       const { count } = await cq;
       result[cfg.table] = { ...(result[cfg.table] || {}), embedded, remaining: count || 0 };
     }
@@ -91,7 +83,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ result, totalRemaining, complete: totalRemaining === 0 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

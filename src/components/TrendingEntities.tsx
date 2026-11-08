@@ -41,7 +41,7 @@ export const TrendingEntities = ({ limit = 10 }: Props) => {
         .limit(500);
       if (cancelled) return;
       const counts = new Map<string, { ent: Entity; recent: number }>();
-      (ae || []).forEach((r) => {
+      (ae || []).forEach((r: any) => {
         const e = r.entities;
         if (!e) return;
         const cur = counts.get(e.id);

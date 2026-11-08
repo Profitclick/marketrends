@@ -40,7 +40,7 @@ export const EngagementInsights = () => {
       setTopEntities((e.data as any) || []);
 
       const counts = new Map<string, number>();
-      ((rels.data as any) || []).forEach((r) => {
+      ((rels.data as any) || []).forEach((r: any) => {
         counts.set(r.article_id, (counts.get(r.article_id) || 0) + 1);
       });
       const topIds = [...counts.entries()]
@@ -53,8 +53,8 @@ export const EngagementInsights = () => {
           .select("id, slug, title, category")
           .in("id", topIds);
         const ordered = (arts || [])
-          .map((a) => ({ ...a, rel_count: counts.get(a.id) || 0 }))
-          .sort((a, b) => b.rel_count - a.rel_count);
+          .map((a: any) => ({ ...a, rel_count: counts.get(a.id) || 0 }))
+          .sort((a: any, b: any) => b.rel_count - a.rel_count);
         setTopArticles(ordered);
       }
     })();

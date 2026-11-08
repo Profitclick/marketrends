@@ -59,11 +59,11 @@ Deno.serve(async (req) => {
     const { data: guides } = await supabase.from("guides").select("topic_id, slug").limit(500);
     const { data: comparisons } = await supabase.from("comparison_pages").select("slug").limit(500);
 
-    const knowTopicIds = new Set((knowledge || []).map((r) => r.topic_id).filter(Boolean));
-    const guideTopicIds = new Set((guides || []).map((r) => r.topic_id).filter(Boolean));
-    const comparisonSlugs = new Set((comparisons || []).map((r) => r.slug));
+    const knowTopicIds = new Set((knowledge || []).map((r: any) => r.topic_id).filter(Boolean));
+    const guideTopicIds = new Set((guides || []).map((r: any) => r.topic_id).filter(Boolean));
+    const comparisonSlugs = new Set((comparisons || []).map((r: any) => r.slug));
 
-    const rows: Record<string, unknown>[] = [];
+    const rows: any[] = [];
 
     for (const t of topics || []) {
       const category = t.category || "Trender & Analyse";
@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ ok: true, opportunities: inserted, topics: topics?.length || 0, entities: entities?.length || 0 }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -154,22 +154,22 @@ Deno.serve(async (req) => {
     }
 
     const ctx: Ctx = {
-      articleTitles: (artsRes.data || []).map((a) => a.title || ""),
-      knowledgeSlugs: new Set((knowRes.data || []).map((r) => r.slug)),
-      guideSlugs: new Set((guidesRes.data || []).map((r) => r.slug)),
-      comparisonSlugs: new Set((cmpRes.data || []).map((r) => r.slug)),
-      intentSlugs: new Set((intentsRes.data || []).map((r) => r.target_slug).filter(Boolean)),
+      articleTitles: (artsRes.data || []).map((a: any) => a.title || ""),
+      knowledgeSlugs: new Set((knowRes.data || []).map((r: any) => r.slug)),
+      guideSlugs: new Set((guidesRes.data || []).map((r: any) => r.slug)),
+      comparisonSlugs: new Set((cmpRes.data || []).map((r: any) => r.slug)),
+      intentSlugs: new Set((intentsRes.data || []).map((r: any) => r.target_slug).filter(Boolean)),
       clusterArticles,
       clusterLinks,
     };
 
-    const rows: IntentRow[] = [];
+    const rows: any[] = [];
 
     const buildRow = (opts: {
       tpl: Template; name: string; other?: string; cluster: string;
       topicId?: string; entityId?: string; secondaryId?: string;
       authority: number; opportunity: number; demand: number;
-      momentum: number; source: string; extraMeta?: Record<string, unknown>;
+      momentum: number; source: string; extraMeta?: any;
     }) => {
       const { tpl } = opts;
       const keyword = tpl.pattern(opts.name, opts.other);
@@ -221,9 +221,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    type IntentRow = ReturnType<typeof buildRow>;
-    type EntityRow = NonNullable<typeof entitiesRes.data>[number];
-    const byType = new Map<string, EntityRow[]>();
+    const byType = new Map<string, any[]>();
     for (const e of entitiesRes.data || []) {
       const t = e.entity_type || "other";
       if (!byType.has(t)) byType.set(t, []);
@@ -260,7 +258,7 @@ Deno.serve(async (req) => {
     }
 
     // Dedupe by target_slug (keep highest priority)
-    const seen = new Map<string, IntentRow>();
+    const seen = new Map<string, any>();
     for (const r of rows) {
       if (!r.target_slug) continue;
       const prev = seen.get(r.target_slug);
@@ -285,7 +283,7 @@ Deno.serve(async (req) => {
     // Link supporting intents to their pillar
     const { data: pillars } = await supabase.from("search_intents")
       .select("id, search_cluster").eq("is_pillar", true);
-    const pillarMap = new Map((pillars || []).map((p) => [p.search_cluster, p.id]));
+    const pillarMap = new Map((pillars || []).map((p: any) => [p.search_cluster, p.id]));
     for (const [cluster, pid] of pillarMap) {
       await supabase.from("search_intents")
         .update({ pillar_intent_id: pid })
@@ -299,7 +297,7 @@ Deno.serve(async (req) => {
       topics: topicsRes.data?.length || 0, entities: entitiesRes.data?.length || 0,
       unique: unique.length, pillars: pillarMap.size,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

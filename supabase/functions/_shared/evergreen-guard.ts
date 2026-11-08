@@ -14,19 +14,6 @@
 //   6. Otherwise                                          -> CREATE_NEW
 import { evaluateDuplicate, recordVerdict, type Candidate } from "./dupe.ts";
 import { slugify, DUPLICATE_THRESHOLD, logDecision } from "./semantic.ts";
-import type { Db } from "./db.ts";
-
-/** Loosely structured JSON returned by the evergreen AI generators (all fields optional). */
-export type EvergreenAiOutput = {
-  title?: string; summary?: string; content?: string; meta_title?: string; meta_description?: string;
-  key_takeaways?: string[]; faq?: { q: string; a: string }[]; steps?: unknown[]; resources?: unknown[];
-  pros_cons?: Record<string, unknown>; estimated_read_time?: number;
-};
-
-export type GuardCache = { titles?: TitleIndexRow[] };
-export type GuardVerdict = GuardResult & { slug: string };
-
-export type TitleIndexRow = { type: string; ref: string; title: string; n: string };
 
 export type EvergreenDecision = "CREATE_NEW" | "UPDATE_EXISTING" | "SKIP_DUPLICATE" | "REVIEW_REQUIRED";
 export type EvergreenType = "knowledge" | "guide" | "comparison" | "intent";
@@ -58,8 +45,8 @@ export type GuardResult = {
 const normTitle = (s: string) =>
   slugify(s).split("-").filter((t) => t.length > 1 && !["hva", "er", "en", "et", "slik", "til", "guide", "vs", "og"].includes(t)).sort().join(" ");
 
-async function titleIndex(supabase: Db) {
-  const out: TitleIndexRow[] = [];
+async function titleIndex(supabase: any) {
+  const out: { type: string; ref: string; title: string; n: string }[] = [];
   for (const [type, table] of [["knowledge", "knowledge_pages"], ["guide", "guides"], ["comparison", "comparison_pages"], ["report", "research_reports"]] as const) {
     const { data } = await supabase.from(table).select("slug,title");
     for (const r of data || []) out.push({ type, ref: r.slug, title: r.title, n: normTitle(r.title) });
@@ -68,8 +55,8 @@ async function titleIndex(supabase: Db) {
 }
 
 export async function evergreenGuard(
-  supabase: Db, apiKey: string, c: GuardInput,
-  opts: { allowUpdate?: boolean; noAI?: boolean; cache?: { titles?: TitleIndexRow[] } } = {},
+  supabase: any, apiKey: string, c: GuardInput,
+  opts: { allowUpdate?: boolean; noAI?: boolean; cache?: { titles?: any[] } } = {},
 ): Promise<GuardResult> {
   const table = TABLE[c.type];
 
@@ -108,7 +95,7 @@ export async function evergreenGuard(
   let v;
   try {
     v = await evaluateDuplicate(supabase, apiKey, cand);
-  } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));
+  } catch (e: any) {
     return { decision: "REVIEW_REQUIRED", barrier: "semantic_unavailable", reason: `semantic check failed: ${String(e.message).slice(0, 120)}`, match: null };
   }
   const top = (v.candidates || [])[0];
@@ -124,7 +111,7 @@ export async function evergreenGuard(
   return { decision: "CREATE_NEW", barrier: "none", reason: "no coverage found", match: top ? { type: top.content_type, ref: top.ref, title: top.title, similarity: Number(top.similarity) } : null, composite: v.score };
 }
 
-export async function logGuard(supabase: Db, c: GuardInput, r: GuardResult, action: string) {
+export async function logGuard(supabase: any, c: GuardInput, r: GuardResult, action: string) {
   await logDecision(supabase, {
     candidate_type: c.type, candidate_ref: c.slug, candidate_title: c.title,
     decision: r.decision, match_type: r.match?.type ?? null, match_ref: r.match?.ref ?? null,

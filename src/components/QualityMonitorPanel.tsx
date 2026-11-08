@@ -26,7 +26,7 @@ export const QualityMonitorPanel = () => {
         .eq("published", true)
         .order("editorial_authority_score", { ascending: true })
         .limit(50);
-      setRows((data || []).map((d) => ({
+      setRows((data || []).map((d: any) => ({
         ...d, score: d.editorial_authority_score, breakdown: d.authority_breakdown,
       })));
 
@@ -35,8 +35,8 @@ export const QualityMonitorPanel = () => {
         .order("updated_at", { ascending: false });
       const { data: links } = await sb.from("internal_links")
         .select("target_slug").eq("target_type", "article");
-      const linked = new Set((links || []).map((l) => l.target_slug));
-      setOrphans((arts || []).filter((a) => !linked.has(a.slug)).slice(0, 25));
+      const linked = new Set((links || []).map((l: any) => l.target_slug));
+      setOrphans((arts || []).filter((a: any) => !linked.has(a.slug)).slice(0, 25));
 
       const { data: fd } = await sb.from("rss_feeds")
         .select("id,name,url,active,last_fetched_at").order("last_fetched_at", { ascending: true, nullsFirst: true });
@@ -45,7 +45,7 @@ export const QualityMonitorPanel = () => {
       const { data: sample } = await sb.from("articles")
         .select("slug,title,ingress,key_takeaways,faq,sources")
         .eq("published", true).order("published_at", { ascending: false }).limit(20);
-      setSchema((sample || []).map((a) => ({
+      setSchema((sample || []).map((a: any) => ({
         slug: a.slug, title: a.title,
         hasIngress: !!(a.ingress && a.ingress.length > 60),
         hasKT: Array.isArray(a.key_takeaways) && a.key_takeaways.length >= 3,

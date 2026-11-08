@@ -36,16 +36,12 @@ Deno.serve(async (req) => {
         .select("relevance_score, articles!inner(id, created_at, published, title, image_url, meta_description, article_type)")
         .eq("topic_id", t.id);
 
-      type TopicArticleRow = {
-        relevance_score: number | null;
-        articles: { id: string; created_at: string; published: boolean; title: string; image_url: string | null; meta_description: string | null; article_type: string | null };
-      };
-      const pub = ((rows || []) as unknown as TopicArticleRow[]).filter((r) => r.articles?.published);
-      const articleSet = new Set<string>(pub.map((r) => r.articles.id));
+      const pub = (rows || []).filter((r: any) => r.articles?.published);
+      const articleSet = new Set<string>(pub.map((r: any) => r.articles.id));
       topicArticleSets.set(t.id, articleSet);
 
       const count = pub.length;
-      const dates = pub.map((r) => new Date(r.articles.created_at).getTime());
+      const dates = pub.map((r: any) => new Date(r.articles.created_at).getTime());
       const last_article_at = dates.length ? new Date(Math.max(...dates)).toISOString() : null;
       const articles_last_7d = dates.filter((d) => d >= now - 7 * DAY).length;
       const articles_last_30d = dates.filter((d) => d >= now - 30 * DAY).length;
@@ -58,7 +54,7 @@ Deno.serve(async (req) => {
         2.0 * recency_boost;
 
       // Hero: highest-relevance published in last 14 days, fallback newest
-      const recentSorted = [...pub].sort((a, b) => {
+      const recentSorted = [...pub].sort((a: any, b: any) => {
         const ar = a.articles.created_at >= cutoff7 ? 2 : a.articles.created_at >= cutoff30 ? 1 : 0;
         const br = b.articles.created_at >= cutoff7 ? 2 : b.articles.created_at >= cutoff30 ? 1 : 0;
         if (br !== ar) return br - ar;
@@ -67,8 +63,8 @@ Deno.serve(async (req) => {
       const hero_article_id = recentSorted[0]?.articles.id || null;
 
       const explainer = pub
-        .filter((r) => r.articles.article_type === "guide")
-        .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))[0];
+        .filter((r: any) => r.articles.article_type === "guide")
+        .sort((a: any, b: any) => (b.relevance_score || 0) - (a.relevance_score || 0))[0];
       const explainer_article_id = explainer?.articles.id || null;
 
       // Auto-generated meta if missing
@@ -106,7 +102,7 @@ Deno.serve(async (req) => {
       if (!articleSet.size) { topicEntitySets.set(topicId, new Set()); continue; }
       const { data: ae } = await supabase
         .from("article_entities").select("entity_id").in("article_id", [...articleSet]);
-      topicEntitySets.set(topicId, new Set((ae || []).map((r) => r.entity_id)));
+      topicEntitySets.set(topicId, new Set((ae || []).map((r: any) => r.entity_id)));
     }
 
     await supabase.from("topic_relations").delete().neq("topic_id", "00000000-0000-0000-0000-000000000000");
