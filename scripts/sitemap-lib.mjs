@@ -48,3 +48,7 @@ export const sitemapIndex = (files) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
   files.map((f) => `  <sitemap><loc>${esc(/^https:\/\//.test(f) ? f : `${SITE_URL}/${f}`)}</loc></sitemap>`).join("\n") +
   `\n</sitemapindex>\n`;
+
+// Indexable public pages outside DB-driven hubs; each must also be prerendered.
+export const PUBLIC_STATIC = ["/academy", "/tools", "/trending", "/newsletter"];
+export const dedupeIntents = (rows) => { const seen = new Set(); return rows.filter((r) => r.target_slug && !r.target_slug.includes("/") && !seen.has(r.target_slug) && seen.add(r.target_slug)); };

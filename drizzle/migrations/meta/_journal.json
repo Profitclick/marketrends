@@ -92,6 +92,13 @@
       "when": 1794149101569,
       "tag": "0012_phase7d2_pipeline_rpc_execute_lockdown",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794167126592,
+      "tag": "0013_restrict_internal_definer_functions",
+      "breakpoints": true
     }
   ]
 }

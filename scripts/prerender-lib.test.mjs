@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { renderRoute, articlePage } from "./prerender-lib.mjs";
+import { renderRoute, articlePage, listPage } from "./prerender-lib.mjs";
 
 const tpl = `<html><head><title>Generic</title><meta name="description" content="g"><meta property="og:url" content="https://marketrends.no/" /></head><body><div id="root"></div></body></html>`;
 const a = { slug: "test-sak", title: "Test sak", content: "Første avsnitt med tilstrekkelig lengde til å telle som tekst.", category: "Finans & Marked", source_name: "NRK", created_at: "2026-11-08T10:00:00Z", article_topics: [{ topics: { slug: "inflasjon", name: "Inflasjon" } }] };
@@ -19,4 +19,14 @@ test("article route gets self canonical, h1, NewsArticle and breadcrumbs; generi
 
 test("dashboard, admin and auth are never prerendered", () => {
   for (const p of ["/dashboard", "/admin", "/auth"]) expect(() => renderRoute(tpl, { path: p, title: "x", h1: "x" })).toThrow();
+});
+
+import { PUBLIC_STATIC } from "./sitemap-lib.mjs";
+test("non-sitemap variant keeps its React canonical, not the homepage", () => {
+  const html = renderRoute('<html><head></head><body><div id="root"></div></body></html>', listPage({ path: "/ressurser/datasets", canonicalPath: "/ressurser", title: "R", h1: "R", description: "d", items: [] }));
+  expect(html).toContain('<link rel="canonical" href="https://marketrends.no/ressurser"');
+  expect(html).not.toContain('href="https://marketrends.no/"');
+});
+test("standalone public pages are listed for sitemap and prerender", () => {
+  expect(PUBLIC_STATIC).toEqual(["/academy", "/tools", "/trending", "/newsletter"]);
 });

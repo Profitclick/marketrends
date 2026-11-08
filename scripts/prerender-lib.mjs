@@ -34,7 +34,8 @@ export function isCanonicalSafe(url) {
 export function renderRoute(template, page) {
   if (EXCLUDED.some((p) => page.path === p || page.path.startsWith(p + "/"))) throw new Error(`excluded route ${page.path}`);
   if (!page.title || !page.h1) throw new Error(`missing title/h1 for ${page.path}`);
-  const url = SITE + page.path;
+  // canonicalPath lets a non-indexable variant (e.g. /ressurser/:type) point at its parent, matching the React route.
+  const url = SITE + (page.canonicalPath || page.path);
   if (!isCanonicalSafe(url)) throw new Error(`unsafe canonical ${url}`);
   const title = esc(page.title), desc = esc(truncate(page.description || page.title));
   const head = [
@@ -105,9 +106,9 @@ export function articlePage(a) {
   };
 }
 
-export function listPage({ path, title, h1, description, items, crumbName, extraIntro = [] }) {
+export function listPage({ path, title, h1, description, items, crumbName, extraIntro = [], canonicalPath }) {
   return {
-    path, title, h1, description, intro: [description, ...extraIntro].filter(Boolean),
+    path, canonicalPath, title, h1, description, intro: [description, ...extraIntro].filter(Boolean),
     links: items.map((a) => ({ href: `/${a.slug}`, text: a.title })),
     schemas: crumbName ? [breadcrumb([{ name: "Forside", path: "/" }, { name: crumbName }])] : [],
   };

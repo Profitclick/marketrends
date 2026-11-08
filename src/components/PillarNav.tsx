@@ -82,15 +82,18 @@ export const PillarNav = ({ intent }: Props) => {
           ? supabase.from("entities").select("slug,name")
               .in("id", [intent.entity_id, intent.secondary_entity_id].filter(Boolean))
           : Promise.resolve({ data: [] as any[] }),
-        supabase.from("articles").select("slug,title").eq("published", true)
-          .ilike("category", `%${cluster || ""}%`)
-          .order("created_at", { ascending: false }).limit(5),
+        // Canonical cluster membership only; articles.category never assigns a cluster.
+        cluster
+          ? supabase.from("article_clusters").select("articles!inner(slug,title,published,created_at)")
+              .eq("cluster_slug", cluster).eq("articles.published", true)
+              .order("created_at", { ascending: false }).limit(5)
+          : Promise.resolve({ data: [] as any[] }),
       ]);
       rel.knowledge = (k.data as any) || [];
       rel.guides = (g.data as any) || [];
       rel.comparisons = (c.data as any) || [];
       rel.entities = (ent.data as any) || [];
-      rel.articles = (art.data as any) || [];
+      rel.articles = ((art.data as unknown as { articles: { slug: string; title: string } }[]) || []).map((r) => r.articles);
 
       if (cancelled) return;
       setPillar(pillarRow);

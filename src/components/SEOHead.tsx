@@ -26,7 +26,7 @@ export const SEOHead = ({
   title,
   description,
   canonicalUrl,
-  ogImage = `${SITE_URL}/og-image.jpg`,
+  ogImage = "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/697c7e75-8636-4eeb-a190-4d486aaace10",
   ogType = "website",
   publishedTime,
   modifiedTime,

@@ -11,6 +11,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { evaluateDuplicate, recordVerdict, type Candidate } from "../_shared/dupe.ts";
 import { embed } from "../_shared/semantic.ts";
+import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
@@ -122,12 +123,14 @@ async function buildInternalLinks(supabase: any, intent: any) {
     if (e) links.push({ source_type: sourceType, source_slug: sourceSlug, target_type: "entity", target_slug: e.slug, anchor: e.name, relevance_score: 80 });
   }
 
-  // Related articles (fuzzy by tag/category)
-  const { data: arts } = await supabase.from("articles")
-    .select("slug,title,category").eq("published", true)
-    .ilike("category", `%${(intent.meta?.category || intent.search_cluster || "").slice(0, 20)}%`)
-    .limit(4);
-  for (const a of arts || []) {
+  // Related articles: canonical cluster membership only (never articles.category).
+  const { data: rows } = intent.search_cluster
+    ? await supabase.from("article_clusters").select("articles!inner(slug,title,published)")
+        .eq("cluster_slug", intent.search_cluster).eq("articles.published", true)
+        .order("score", { ascending: false }).limit(4)
+    : { data: [] as any[] };
+  const arts = (rows || []).map((r: any) => r.articles);
+  for (const a of arts) {
     if (!a.slug) continue;
     links.push({
       source_type: sourceType, source_slug: sourceSlug,
@@ -257,6 +260,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Number(body.limit) || 3, 10);
     const ids: string[] | undefined = body.ids;
     const force = !!body.force;
+    const dryRun = !!body.dry_run;
 
     let q = supabase.from("search_intents").select("*").in("content_status", ["pending", "queued"])
       .order("priority_score", { ascending: false }).limit(limit);
@@ -265,6 +269,21 @@ Deno.serve(async (req) => {
     const { data: intents } = await q;
     if (!intents?.length) {
       return new Response(JSON.stringify({ generated: 0, message: "Nothing to generate" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Shared evergreen guard before any AI generation; dry_run returns verdicts with no writes.
+    const cache: { titles?: any[] } = {};
+    const guarded = new Map<string, any>();
+    for (const intent of intents) {
+      const collision = await slugCollision(supabase, intent.target_slug);
+      const g = collision
+        ? { decision: "SKIP_DUPLICATE", barrier: "slug_collision", reason: "slug exists in another table", match: { type: collision.split(":")[0], ref: collision.split(":")[1], title: collision } }
+        : await evergreenGuard(supabase, key, { type: "intent", slug: intent.target_slug, title: intent.keyword, text: intent.keyword, topics: [intent.search_cluster].filter(Boolean) }, { cache });
+      guarded.set(intent.id, g);
+    }
+    if (dryRun) {
+      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i: any) => ({ slug: i.target_slug, ...guarded.get(i.id) })) }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -289,6 +308,17 @@ Deno.serve(async (req) => {
           }, "skipped-slug-collision");
           duplicates++;
           decisions.push({ intent: intent.keyword, decision: "duplicate", match: collision });
+          continue;
+        }
+
+        const g = guarded.get(intent.id);
+        if (!force && g.decision !== "CREATE_NEW") {
+          await logGuard(supabase, { type: "intent", slug: intent.target_slug, title: intent.keyword }, g, "blocked-pre-generation");
+          if (g.decision === "SKIP_DUPLICATE") {
+            await supabase.from("search_intents").update({ content_status: "skipped", duplicate_of: `${g.match?.type}:${g.match?.ref}` }).eq("id", intent.id);
+            duplicates++;
+          }
+          decisions.push({ intent: intent.keyword, decision: g.decision, barrier: g.barrier, match: g.match?.ref ?? null });
           continue;
         }
 

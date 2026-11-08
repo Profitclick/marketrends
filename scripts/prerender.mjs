@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { renderRoute, articlePage, listPage, hubPage, routeFile, parity, CATEGORIES, categorySlug } from "./prerender-lib.mjs";
-import { dedupe } from "./sitemap-lib.mjs";
+import { dedupe, dedupeIntents } from "./sitemap-lib.mjs";
 
 const PAGE = 500; // batched reads keep memory bounded per request
 
@@ -70,6 +70,22 @@ export async function prerender(outDir, base, key, io = fs) {
     description: "Uavhengig norsk publikasjon om finans, fintech, teknologi, AI, krypto og investering, med nyheter, analyse og forklaringer.", items: latest.slice(0, 10) }));
   write(listPage({ path: "/ressurser", title: "Ressurssenter – data, kilder og rapporter | Marketrends", h1: "Ressurser, data og kilder", crumbName: "Ressurser",
     description: "Et åpent bibliotek av kilder, datasett og rapporter som ligger til grunn for Marketrends sin dekning.", items: latest.slice(0, 10) }));
+
+  // Public pages outside DB hubs (copy mirrors each React page's own title/H1).
+  const STATIC = [
+    ["/academy", "Markettrends Academy – Lær finans, AI og entreprenørskap", "Lær finans, AI og entreprenørskap", "Academy", "Norsk læringshub for finans, AI, SaaS, krypto og entreprenørskap. Strukturerte guider og kunnskapssider basert på dagsaktuelle nyheter."],
+    ["/tools", "Verktøy – Kalkulatorer for finans, SaaS og startup", "Kalkulatorer og verktøy", "Verktøy", "Praktiske norske kalkulatorer for investering, SaaS-verdsettelse, runway, burn rate, AI ROI og mer. Bygget for grunnleggere og investorer."],
+    ["/trending", "Trending nå – Hva beveger markedet i dag?", "Trending nå", "Trending", "Sanntidsoversikt over de mest leste artiklene, raskest voksende temaene og mest omtalte aktørene innen finans, krypto, AI og teknologi i Norge."],
+    ["/newsletter", "Newsletter Center – temabaserte nyhetsbrev | Marketrends", "Nyhetsbrev", "Nyhetsbrev", "Meld deg på Marketrends sine temabaserte nyhetsbrev innen AI, krypto, fintech, startup, investering og trading."],
+  ];
+  for (const [p, title, h1, crumbName, description] of STATIC) write(listPage({ path: p, title, h1, crumbName, description, items: latest.slice(0, 10) }));
+  // /ressurser/:type renders Resources, whose canonical is /ressurser; mirror that so the fallback never shows the homepage canonical.
+  for (const t of ["research", "datasets", "sources", "statistics", "government", "industry"]) write(listPage({ path: `/ressurser/${t}`, canonicalPath: "/ressurser",
+    title: "Ressurssenter – data, kilder og rapporter | Marketrends", h1: "Ressurser, data og kilder", crumbName: "Ressurser",
+    description: "Et åpent bibliotek av kilder, datasett og rapporter som ligger til grunn for Marketrends sin dekning.", items: latest.slice(0, 10) }));
+  const intents = dedupeIntents(await getAll(base, key, "search_intents?select=target_slug,keyword,meta,created_at&content_status=eq.published&target_slug=not.is.null&order=created_at.desc,target_slug.asc"));
+  for (const i of intents) { const m = i.meta || {}; write(listPage({ path: `/intent/${i.target_slug}`, title: m.meta_title || m.title || i.keyword, h1: m.title || i.keyword, crumbName: m.title || i.keyword,
+    description: m.meta_description || m.summary || i.keyword, items: latest.slice(0, 10) })); }
 
   const hubs = [
     ["topics", "/topic/", "Tema", "slug,name,description,meta_title,meta_description,created_at", "article_count=gt.0"],
