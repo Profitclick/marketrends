@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { shard, newsFilter, dedupe, SHARD_SIZE, NEWS_SHARD_SIZE } from "./sitemap-lib.mjs";
+import { shard, newsFilter, dedupe, SHARD_SIZE, NEWS_SHARD_SIZE, sitemapIndex, NEWS_SITEMAP_URL } from "./sitemap-lib.mjs";
 import { clusterRedirectTarget } from "../src/pages/ClusterRedirect.tsx";
 
 test("sharding keeps every URL and respects the limit", () => {
@@ -33,4 +33,11 @@ test("news excludes drafts, future and invalid dates and includes exact 48h boun
 test("Google News shards never exceed 1000 entries", () => {
   const parts = shard(Array.from({ length: 2001 }, (_, i) => i), NEWS_SHARD_SIZE);
   expect(parts.map(p => p.length)).toEqual([1000, 1000, 1]);
+});
+
+test("index lists the Worker news sitemap once and never the static fallback", () => {
+  const xml = sitemapIndex(["sitemap-pages.xml", NEWS_SITEMAP_URL]);
+  expect(xml).toContain("<loc>https://news-sitemap.marketrends.no/sitemap-news.xml</loc>");
+  expect(xml).not.toContain("https://marketrends.no/sitemap-news.xml");
+  expect(xml.match(/sitemap-news/g).length).toBe(1);
 });
