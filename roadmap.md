@@ -2,9 +2,10 @@
 
 ## Phase 7C.1
 - [x] Reconcile the live news sitemap against exact eligible database slugs at a fixed audit timestamp.
-- [ ] Publish existing structured-data cleanup — waiting on a decision about critical security findings.
-- [ ] Implement automatic canonical news-sitemap delivery — no supported current-host route or partial static refresh confirmed.
-- [ ] Verify live structured data, automatic refresh, cost and automation safety; return the specified report.
+- [x] Verify existing structured-data cleanup is already live; request republishing after fixing both critical access findings.
+- [x] Restrict feed mutations to admins and public link reads to valid public endpoints; verify admin UI, 16 tests and fresh scan.
+- [ ] Implement automatic canonical news-sitemap delivery — no native route/partial refresh confirmed; Cloudflare has no existing Worker route, DNS inventory returned 403, and Cloudflare deployment is unsupported here.
+- [x] Verify live structured data, exact before/after reconciliation, cost and unchanged schedules; return Phase 7C.1 NOT_COMPLETE report.
 
 ## Phase 7C
 - [x] Audit current GSC access, sitemap freshness, metrics structures and scheduler without changing production jobs.
