@@ -70,7 +70,5 @@ export async function prerender(outDir, base, key) {
     h1: "Marketrends.no – nyheter og analyse om finans og teknologi",
     description: "Uavhengig norsk publikasjon om finans, fintech, teknologi, AI, krypto og investering, med nyheter, analyse og forklaringer.",
     items: latest }));
-  // Generic shell for every other client route (e.g. /dashboard): unchanged template, served by SPA fallback.
-  fs.writeFileSync(path.join(outDir, "200.html"), template);
   return { ...stats, articles: articles.length };
 }
