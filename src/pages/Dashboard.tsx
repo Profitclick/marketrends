@@ -375,7 +375,7 @@ const Dashboard = () => {
           <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
             <TabsList className="inline-flex w-auto min-w-full md:w-full flex-nowrap md:flex-wrap justify-start h-auto">
               <TabsTrigger value="stats"><BarChart3 className="h-4 w-4 mr-1.5" aria-hidden="true" />Statistikk</TabsTrigger>
-              <TabsTrigger value="gsc"><SearchIconFallback />Google-målinger</TabsTrigger>
+              <TabsTrigger value="gsc"><BarChart3 className="h-4 w-4 mr-1.5" aria-hidden="true" />Google-målinger</TabsTrigger>
               <TabsTrigger value="opportunities"><Compass className="h-4 w-4 mr-1.5" aria-hidden="true" />Opportunities</TabsTrigger>
               <TabsTrigger value="engagement"><TrendingUp className="h-4 w-4 mr-1.5" aria-hidden="true" />Engagement</TabsTrigger>
               <TabsTrigger value="heatmap"><Network className="h-4 w-4 mr-1.5" aria-hidden="true" />Heatmap</TabsTrigger>
