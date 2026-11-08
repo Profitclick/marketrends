@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       .order("opportunity_score", { ascending: false })
       .limit(MAX_PER_RUN);
 
-    const dispatched: any[] = [];
+    const dispatched: { id: string; keyword: string; type: string; endpoint: string | null }[] = [];
     for (const opp of data || []) {
       const type = opp.recommended_content_type;
       let endpoint: string | null = null;

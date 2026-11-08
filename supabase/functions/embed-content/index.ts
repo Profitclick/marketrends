@@ -2,10 +2,13 @@
 // POST { table?: string, batch?: number, all?: boolean }
 // Without `table`, walks every configured table once with `batch` rows each.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import type { Db } from "../_shared/db.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { embedBatch } from "../_shared/semantic.ts";
 
-type Cfg = { table: string; select: string; text: (r) => string; filter?: (q) => any };
+type EmbedRow = { id: string; [k: string]: unknown };
+type Query = ReturnType<ReturnType<ReturnType<Db["from"]>["select"]>["is"]>;
+type Cfg = { table: string; select: string; text: (r: EmbedRow) => string; filter?: (q: Query) => Query };
 
 const TABLES: Cfg[] = [
   {
@@ -57,14 +60,15 @@ Deno.serve(async (req) => {
         if (error) { result[cfg.table] = { embedded, remaining: -1, error: error.message }; break; }
         if (!rows?.length) break;
 
-        const texts = rows.map((r) => cfg.text(r) || "n/a");
+        const typedRows = rows as unknown as EmbedRow[];
+        const texts = typedRows.map((r) => cfg.text(r) || "n/a");
         try {
           const vectors = await embedBatch(texts, key);
           const now = new Date().toISOString();
           for (let i = 0; i < rows.length; i++) {
             await supabase.from(cfg.table)
-              .update({ embedding: vectors[i] as any, embedded_at: now })
-              .eq("id", (rows[i] as any).id);
+              .update({ embedding: vectors[i], embedded_at: now })
+              .eq("id", typedRows[i].id);
           }
           embedded += rows.length;
         } catch (e_: unknown) { const e = e_ instanceof Error ? e_ : new Error(String(e_));

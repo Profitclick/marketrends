@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import type { Db } from "../_shared/db.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { startRun, finishRun } from "../_shared/run-lock.ts";
 import { evaluateDuplicate, recordVerdict } from "../_shared/dupe.ts";
@@ -158,7 +159,13 @@ function generateSlug(title: string): string {
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 100);
 }
 
-async function processArticleWithAI(item: RSSItem, sourceName: string): Promise<any> {
+type AiArticle = {
+  title: string; content: string; meta_description?: string; tags?: string[];
+  category?: string; article_type?: string; archived_sources?: string[];
+  risk_warning?: string | null; ai_quality_score: number | null; _status?: string;
+};
+
+async function processArticleWithAI(item: RSSItem, sourceName: string): Promise<AiArticle | null> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
 
@@ -246,7 +253,7 @@ Gi ai_quality_score (0.0-1.0) basert på faglig verdi, norsk relevans og redaksj
         }
         if (qualityScore !== null) qualityScore = Math.max(0, Math.min(1, qualityScore));
         parsed.ai_quality_score = qualityScore;
-        return parsed;
+        return parsed as AiArticle;
       } catch { return null; }
     } catch (error) {
       console.error("AI processing error:", error);
@@ -256,7 +263,7 @@ Gi ai_quality_score (0.0-1.0) basert på faglig verdi, norsk relevans og redaksj
   return null;
 }
 
-async function logToSystem(supabase: any, logLevel: string, logType: string, message: string, context?: any, articleId?: string, feedId?: string) {
+async function logToSystem(supabase: Db, logLevel: string, logType: string, message: string, context?: Record<string, unknown>, articleId?: string, feedId?: string) {
   try {
     await supabase.from('system_logs').insert({
       log_level: logLevel, log_type: logType, message,
@@ -315,7 +322,7 @@ serve(async (req) => {
     let totalSkippedLowScore = 0;
     let creditsDepleted = false;
     let consecutiveFailures = 0;
-    const results: any[] = [];
+    const results: Record<string, unknown>[] = [];
 
     // Collect all items from all feeds first, then score and sort
     const allItems: { item: RSSItem; feedName: string; feedId: string; preScore: number }[] = [];
@@ -507,7 +514,7 @@ serve(async (req) => {
           image_url: imageUrl, published: shouldPublish, ai_status: 'success',
           archived_sources: aiResult.archived_sources || [item.link],
           risk_warning: aiResult.risk_warning || null,
-          embedding: embedding as any,
+          embedding,
           embedded_at: embedding ? new Date().toISOString() : null,
           processing_log: {
             processed_at: new Date().toISOString(), source: feedName,
