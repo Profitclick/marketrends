@@ -2,7 +2,18 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
+import { errMsg } from "../_shared/db.ts";
+
+type GuideOutput = {
+  summary: string; content: string;
+  steps?: { title: string; description: string }[];
+  faq?: { q: string; a: string }[];
+  resources?: { title: string; note: string }[];
+  estimated_read_time?: number;
+  meta_title: string; meta_description: string;
+};
+type SeedGuide = { title: string; category: string; difficulty: string; slug: string };
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -25,7 +36,7 @@ const SEED_GUIDES: { title: string; category: string; difficulty: string }[] = [
   { title: "Slik regner du ut SaaS-verdsettelse", category: "saas", difficulty: "advanced" },
 ];
 
-async function aiJson(prompt: string, key: string): Promise<any> {
+async function aiJson<T>(prompt: string, key: string): Promise<T> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -39,7 +50,7 @@ async function aiJson(prompt: string, key: string): Promise<any> {
     }),
   });
   if (!res.ok) throw new Error(`AI ${res.status}: ${await res.text()}`);
-  return JSON.parse((await res.json()).choices[0].message.content);
+  return JSON.parse((await res.json()).choices[0].message.content) as T;
 }
 
 Deno.serve(async (req) => {
@@ -55,9 +66,9 @@ Deno.serve(async (req) => {
 
     const dryRun = body.dry_run === true;
     const allowUpdate = body.allow_update === true;
-    const cache: any = {};
-    const verdicts: any[] = [];
-    const pending: any[] = [];
+    const cache: { titles?: TitleEntry[] } = {};
+    const verdicts: (GuardResult & { slug: string })[] = [];
+    const pending: SeedGuide[] = [];
     for (const g of SEED_GUIDES.map(g => ({ ...g, slug: slugify(g.title) }))) {
       const input = { type: "guide" as const, slug: g.slug, title: g.title, text: `${g.title}. Kategori: ${g.category}.`, topics: [g.category] };
       const r = await evergreenGuard(supabase, key, input, { allowUpdate, cache });
@@ -84,7 +95,7 @@ Returner JSON:
  "meta_title": "<=60 tegn",
  "meta_description": "<=160 tegn"
 }`;
-        const out = await aiJson(prompt, key);
+        const out = await aiJson<GuideOutput>(prompt, key);
         await supabase.from("guides").upsert({
           slug: g.slug, title: g.title, category: g.category, difficulty: g.difficulty,
           content: out.content, summary: out.summary,
@@ -102,8 +113,8 @@ Returner JSON:
     return new Response(JSON.stringify({ generated, errors, pending: pending.length, verdicts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ error: errMsg(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

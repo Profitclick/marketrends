@@ -14,6 +14,7 @@
 //   6. Otherwise                                          -> CREATE_NEW
 import { evaluateDuplicate, recordVerdict, type Candidate } from "./dupe.ts";
 import { slugify, DUPLICATE_THRESHOLD, logDecision } from "./semantic.ts";
+import { errMsg, type DbClient } from "./db.ts";
 
 export type EvergreenDecision = "CREATE_NEW" | "UPDATE_EXISTING" | "SKIP_DUPLICATE" | "REVIEW_REQUIRED";
 export type EvergreenType = "knowledge" | "guide" | "comparison" | "intent";
@@ -42,26 +43,32 @@ export type GuardResult = {
   composite?: number;
 };
 
+/** Entry in the cross-table normalized-title index. */
+export type TitleEntry = { type: string; ref: string; title: string; n: string };
+
 const normTitle = (s: string) =>
   slugify(s).split("-").filter((t) => t.length > 1 && !["hva", "er", "en", "et", "slik", "til", "guide", "vs", "og"].includes(t)).sort().join(" ");
 
-async function titleIndex(supabase: any) {
-  const out: { type: string; ref: string; title: string; n: string }[] = [];
+async function titleIndex(supabase: DbClient): Promise<TitleEntry[]> {
+  const out: TitleEntry[] = [];
   for (const [type, table] of [["knowledge", "knowledge_pages"], ["guide", "guides"], ["comparison", "comparison_pages"], ["report", "research_reports"]] as const) {
     const { data } = await supabase.from(table).select("slug,title");
-    for (const r of data || []) out.push({ type, ref: r.slug, title: r.title, n: normTitle(r.title) });
+    for (const r of (data || []) as { slug: string; title: string }[]) {
+      out.push({ type, ref: r.slug, title: r.title, n: normTitle(r.title) });
+    }
   }
   return out;
 }
 
 export async function evergreenGuard(
-  supabase: any, apiKey: string, c: GuardInput,
-  opts: { allowUpdate?: boolean; noAI?: boolean; cache?: { titles?: any[] } } = {},
+  supabase: DbClient, apiKey: string, c: GuardInput,
+  opts: { allowUpdate?: boolean; noAI?: boolean; cache?: { titles?: TitleEntry[] } } = {},
 ): Promise<GuardResult> {
   const table = TABLE[c.type];
 
   // 1. Exact slug (intents: the candidate row itself owns target_slug; cross-table collisions are checked by the caller)
-  const { data: own } = c.type === "intent" ? { data: null } : await supabase.from(table).select("slug,title").eq("slug", c.slug).maybeSingle();
+  const { data: ownData } = c.type === "intent" ? { data: null } : await supabase.from(table).select("slug,title").eq("slug", c.slug).maybeSingle();
+  const own = ownData as { slug: string; title: string } | null;
   if (own) {
     return {
       decision: opts.allowUpdate ? "UPDATE_EXISTING" : "SKIP_DUPLICATE",
@@ -72,7 +79,8 @@ export async function evergreenGuard(
 
   // 2. Alternate slugs (mirrored comparison)
   for (const alt of c.type === "intent" ? [] : c.altSlugs || []) {
-    const { data: m } = await supabase.from(table).select("slug,title").eq("slug", alt).maybeSingle();
+    const { data: mData } = await supabase.from(table).select("slug,title").eq("slug", alt).maybeSingle();
+    const m = mData as { slug: string; title: string } | null;
     if (m) return { decision: "SKIP_DUPLICATE", barrier: "mirror_slug", reason: "same pair exists in reverse order", match: { type: c.type, ref: m.slug, title: m.title } };
   }
 
@@ -86,8 +94,9 @@ export async function evergreenGuard(
       ? { decision: "SKIP_DUPLICATE", barrier: "normalized_title", reason: "same normalized title, same page type", match: hit }
       : { decision: "REVIEW_REQUIRED", barrier: "normalized_title", reason: `same normalized title as existing ${hit.type}`, match: hit };
   }
-  const { data: art } = await supabase.from("articles").select("slug,title").eq("published", true).ilike("title", c.title).limit(1);
-  if (art?.length) return { decision: "REVIEW_REQUIRED", barrier: "normalized_title", reason: "identical title as published article", match: { type: "article", ref: art[0].slug, title: art[0].title } };
+  const { data: artData } = await supabase.from("articles").select("slug,title").eq("published", true).ilike("title", c.title).limit(1);
+  const art = (artData || []) as { slug: string; title: string }[];
+  if (art.length) return { decision: "REVIEW_REQUIRED", barrier: "normalized_title", reason: "identical title as published article", match: { type: "article", ref: art[0].slug, title: art[0].title } };
 
   // 4. Semantic
   if (opts.noAI) return { decision: "REVIEW_REQUIRED", barrier: "semantic_not_requested", reason: "No cached query embedding supplied; semantic coverage cannot be concluded without an AI request", match: null };
@@ -95,8 +104,8 @@ export async function evergreenGuard(
   let v;
   try {
     v = await evaluateDuplicate(supabase, apiKey, cand);
-  } catch (e: any) {
-    return { decision: "REVIEW_REQUIRED", barrier: "semantic_unavailable", reason: `semantic check failed: ${String(e.message).slice(0, 120)}`, match: null };
+  } catch (e) {
+    return { decision: "REVIEW_REQUIRED", barrier: "semantic_unavailable", reason: `semantic check failed: ${errMsg(e).slice(0, 120)}`, match: null };
   }
   const top = (v.candidates || [])[0];
   if (v.match && v.score >= DUPLICATE_THRESHOLD) {
@@ -111,7 +120,7 @@ export async function evergreenGuard(
   return { decision: "CREATE_NEW", barrier: "none", reason: "no coverage found", match: top ? { type: top.content_type, ref: top.ref, title: top.title, similarity: Number(top.similarity) } : null, composite: v.score };
 }
 
-export async function logGuard(supabase: any, c: GuardInput, r: GuardResult, action: string) {
+export async function logGuard(supabase: DbClient, c: GuardInput, r: GuardResult, action: string) {
   await logDecision(supabase, {
     candidate_type: c.type, candidate_ref: c.slug, candidate_title: c.title,
     decision: r.decision, match_type: r.match?.type ?? null, match_ref: r.match?.ref ?? null,

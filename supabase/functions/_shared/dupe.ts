@@ -3,6 +3,15 @@ import {
   embed, headlineSimilarity, overlapRatio, normalizeUrl, compositeScore,
   DUPLICATE_THRESHOLD, MERGE_THRESHOLD, logDecision, type DupeSignals,
 } from "./semantic.ts";
+import { str, strArr, type DbClient, type Row } from "./db.ts";
+
+/** Row shape returned by the match_editorial_content RPC. */
+export type MatchCandidate = {
+  content_type: string;
+  ref: string;
+  title: string;
+  similarity: number;
+};
 
 export type Candidate = {
   type: string;            // article | intent | knowledge | guide | comparison | report
@@ -23,7 +32,7 @@ export type DupeVerdict = {
   signals: DupeSignals | null;
   match: { content_type: string; ref: string; title: string; similarity: number } | null;
   embedding: number[];
-  candidates: any[];
+  candidates: MatchCandidate[];
 };
 
 const TABLE_BY_TYPE: Record<string, { table: string; slugCol: string; titleCol: string }> = {
@@ -35,7 +44,7 @@ const TABLE_BY_TYPE: Record<string, { table: string; slugCol: string; titleCol: 
   intent: { table: "search_intents", slugCol: "target_slug", titleCol: "keyword" },
 };
 
-async function enrichMatch(supabase: any, m: any) {
+async function enrichMatch(supabase: DbClient, m: MatchCandidate): Promise<Row> {
   const cfg = TABLE_BY_TYPE[m.content_type];
   if (!cfg) return {};
   const cols = cfg.table === "articles"
@@ -46,37 +55,41 @@ async function enrichMatch(supabase: any, m: any) {
 }
 
 export async function evaluateDuplicate(
-  supabase: any, apiKey: string, c: Candidate,
+  supabase: DbClient, apiKey: string, c: Candidate,
 ): Promise<DupeVerdict> {
   const embedding = await embed(`${c.title}\n\n${c.text}`, apiKey);
 
-  const { data: matches, error } = await supabase.rpc("match_editorial_content", {
-    query_embedding: embedding as any,
+  const { data, error } = await supabase.rpc("match_editorial_content", {
+    query_embedding: embedding,
     match_threshold: 0.72,
     match_count: 8,
     exclude_ref: `${c.type}:${c.ref}`,
   });
   if (error) console.error("match_editorial_content", error);
+  const matches = (data || []) as unknown as MatchCandidate[];
 
   let best: DupeVerdict["match"] = null;
   let bestSignals: DupeSignals | null = null;
   let bestScore = 0;
 
-  for (const m of matches || []) {
-    const row: any = await enrichMatch(supabase, m);
-    const matchTitle = m.title || row.title || "";
-    const hoursApart = c.published_at && row.created_at
-      ? Math.abs(new Date(c.published_at).getTime() - new Date(row.created_at).getTime()) / 36e5
+  for (const m of matches) {
+    const row = await enrichMatch(supabase, m);
+    const matchTitle = m.title || str(row.title);
+    const createdAt = str(row.created_at);
+    const sourceUrl = str(row.source_url);
+    const canonicalUrl = str(row.canonical_url);
+    const hoursApart = c.published_at && createdAt
+      ? Math.abs(new Date(c.published_at).getTime() - new Date(createdAt).getTime()) / 36e5
       : null;
 
     const signals: DupeSignals = {
       semantic: Number(m.similarity) || 0,
       headline: headlineSimilarity(c.title, matchTitle),
-      entity_overlap: overlapRatio(c.entities || [], row.tags || []),
-      topic_overlap: overlapRatio(c.topics || [], [row.category].filter(Boolean)),
+      entity_overlap: overlapRatio(c.entities || [], strArr(row.tags)),
+      topic_overlap: overlapRatio(c.topics || [], str(row.category) ? [str(row.category)] : []),
       event_similarity: c.event ? headlineSimilarity(c.event, matchTitle) : 0,
-      same_source_url: !!(c.source_url && row.source_url && normalizeUrl(c.source_url) === normalizeUrl(row.source_url)),
-      same_canonical_url: !!(c.canonical_url && row.canonical_url && normalizeUrl(c.canonical_url) === normalizeUrl(row.canonical_url)),
+      same_source_url: !!(c.source_url && sourceUrl && normalizeUrl(c.source_url) === normalizeUrl(sourceUrl)),
+      same_canonical_url: !!(c.canonical_url && canonicalUrl && normalizeUrl(c.canonical_url) === normalizeUrl(canonicalUrl)),
       hours_apart: hoursApart,
     };
     const score = compositeScore(signals);
@@ -90,11 +103,11 @@ export async function evaluateDuplicate(
   const decision: DupeVerdict["decision"] =
     bestScore >= DUPLICATE_THRESHOLD ? "duplicate" : bestScore >= MERGE_THRESHOLD ? "merge" : "unique";
 
-  return { decision, score: bestScore, signals: bestSignals, match: best, embedding, candidates: matches || [] };
+  return { decision, score: bestScore, signals: bestSignals, match: best, embedding, candidates: matches };
 }
 
 export async function recordVerdict(
-  supabase: any, c: Candidate, v: DupeVerdict, action: string,
+  supabase: DbClient, c: Candidate, v: DupeVerdict, action: string,
 ) {
   await logDecision(supabase, {
     candidate_type: c.type,

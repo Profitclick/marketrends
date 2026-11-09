@@ -1,4 +1,5 @@
 /** Run journal + exclusive locking for scheduled pipeline jobs. */
+import type { DbClient } from "./db.ts";
 
 export type RunMetrics = {
   processed?: number;
@@ -12,7 +13,7 @@ export type RunMetrics = {
 
 /** Returns a run id, or null when another run of the same job is in flight. */
 export async function startRun(
-  supabase: any, job: string, staleMinutes = 30,
+  supabase: DbClient, job: string, staleMinutes = 30,
 ): Promise<string | null> {
   const { data, error } = await supabase.rpc("start_pipeline_run", {
     _job: job, _stale_minutes: staleMinutes,
@@ -22,7 +23,7 @@ export async function startRun(
 }
 
 export async function finishRun(
-  supabase: any, id: string | null, status: "success" | "partial" | "failed",
+  supabase: DbClient, id: string | null, status: "success" | "partial" | "failed",
   m: RunMetrics = {}, error?: string,
 ) {
   if (!id) return;

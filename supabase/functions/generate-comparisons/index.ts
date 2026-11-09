@@ -2,7 +2,16 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
+import { errMsg } from "../_shared/db.ts";
+
+type FaqItem = { q: string; a: string };
+type ComparisonOutput = {
+  title: string; summary: string; content: string;
+  pros_cons?: Record<string, string[]>; faq?: FaqItem[];
+  meta_title: string; meta_description: string;
+};
+type SeedPair = { a: string; b: string; slug: string };
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -12,7 +21,7 @@ const slugify = (s: string) =>
     .replace(/[æå]/g, "a").replace(/ø/g, "o")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-async function aiJson(prompt: string, key: string): Promise<any> {
+async function aiJson<T>(prompt: string, key: string): Promise<T> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -26,7 +35,7 @@ async function aiJson(prompt: string, key: string): Promise<any> {
     }),
   });
   if (!res.ok) throw new Error(`AI ${res.status}: ${await res.text()}`);
-  return JSON.parse((await res.json()).choices[0].message.content);
+  return JSON.parse((await res.json()).choices[0].message.content) as T;
 }
 
 // Curated comparison pairs (seed list). Auto-pair eligible entities by type otherwise.
@@ -54,9 +63,9 @@ Deno.serve(async (req) => {
 
     const dryRun = body.dry_run === true;
     const allowUpdate = body.allow_update === true;
-    const cache: any = {};
-    const verdicts: any[] = [];
-    const pending: any[] = [];
+    const cache: { titles?: TitleEntry[] } = {};
+    const verdicts: (GuardResult & { slug: string })[] = [];
+    const pending: SeedPair[] = [];
     for (const p of SEED_PAIRS.map(p => ({ ...p, slug: `${slugify(p.a)}-vs-${slugify(p.b)}` }))) {
       const input = { type: "comparison" as const, slug: p.slug, title: `${p.a} vs ${p.b}: En faglig sammenligning`,
         text: `Sammenligning av ${p.a} og ${p.b}.`, entities: [slugify(p.a), slugify(p.b)],
@@ -84,11 +93,11 @@ Returner JSON:
  "meta_title": "<=60 tegn",
  "meta_description": "<=160 tegn"
 }`;
-        const out = await aiJson(prompt, key);
+        const out = await aiJson<ComparisonOutput>(prompt, key);
         const schema = {
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: (out.faq || []).map((f: any) => ({
+          mainEntity: (out.faq || []).map((f) => ({
             "@type": "Question", name: f.q,
             acceptedAnswer: { "@type": "Answer", text: f.a },
           })),
@@ -109,8 +118,8 @@ Returner JSON:
     return new Response(JSON.stringify({ generated, errors, pending: pending.length, verdicts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ error: errMsg(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
