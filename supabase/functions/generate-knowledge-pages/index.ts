@@ -3,7 +3,16 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
+import { errMsg } from "../_shared/db.ts";
+
+type TopicRow = { id: string; slug: string; name: string; description: string | null; category_hint: string | null; article_count: number };
+type FaqItem = { q: string; a: string };
+type KnowledgeOutput = {
+  title: string; summary: string; content: string;
+  key_takeaways?: string[]; faq?: FaqItem[];
+  meta_title: string; meta_description: string;
+};
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -13,7 +22,7 @@ const slugify = (s: string) =>
     .replace(/[æå]/g, "a").replace(/ø/g, "o")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-async function aiJson(prompt: string, key: string): Promise<any> {
+async function aiJson<T>(prompt: string, key: string): Promise<T> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -28,7 +37,7 @@ async function aiJson(prompt: string, key: string): Promise<any> {
   });
   if (!res.ok) throw new Error(`AI ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return JSON.parse(data.choices[0].message.content);
+  return JSON.parse(data.choices[0].message.content) as T;
 }
 
 Deno.serve(async (req) => {
@@ -45,29 +54,30 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const limit = Math.min(Number(body.limit) || 5, 20);
 
-    const { data: topics } = await supabase
+    const { data: topicData } = await supabase
       .from("topics")
       .select("id, slug, name, description, category_hint, article_count")
       .gte("article_count", 5)
       .order("trending_score", { ascending: false })
       .limit(50);
+    const topics = (topicData || []) as unknown as TopicRow[];
 
-    if (!topics?.length) {
+    if (!topics.length) {
       return new Response(JSON.stringify({ generated: 0, message: "No eligible topics" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: existing } = await supabase
+    const { data: existingData } = await supabase
       .from("knowledge_pages").select("topic_id").not("topic_id", "is", null);
-    const done = new Set((existing || []).map((e: any) => e.topic_id));
+    const done = new Set(((existingData || []) as { topic_id: string | null }[]).map((e) => e.topic_id));
 
     const dryRun = body.dry_run === true;
     const allowUpdate = body.allow_update === true;
-    const cache: any = {};
-    const verdicts: any[] = [];
-    const pending: any[] = [];
-    const scan = topics.filter((t: any) => dryRun || !done.has(t.id)).slice(0, dryRun ? Math.min(Number(body.limit) || 10, 20) : limit * 3);
+    const cache: { titles?: TitleEntry[] } = {};
+    const verdicts: (GuardResult & { slug: string })[] = [];
+    const pending: TopicRow[] = [];
+    const scan = topics.filter((t) => dryRun || !done.has(t.id)).slice(0, dryRun ? Math.min(Number(body.limit) || 10, 20) : limit * 3);
     for (const t of scan) {
       const slug = `hva-er-${slugify(t.name)}`;
       const input = { type: "knowledge" as const, slug, title: `Hva er ${t.name}?`, text: `${t.name}. ${t.description || ""}`, topics: [t.slug] };
@@ -95,12 +105,12 @@ Returner JSON med feltene:
  "meta_title": "<=60 tegn",
  "meta_description": "<=160 tegn"
 }`;
-        const out = await aiJson(prompt, key);
+        const out = await aiJson<KnowledgeOutput>(prompt, key);
         const slug = `hva-er-${slugify(t.name)}`;
         const schema = {
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: (out.faq || []).map((f: any) => ({
+          mainEntity: (out.faq || []).map((f) => ({
             "@type": "Question", name: f.q,
             acceptedAnswer: { "@type": "Answer", text: f.a },
           })),
@@ -123,8 +133,8 @@ Returner JSON med feltene:
     return new Response(JSON.stringify({ generated, errors, eligible: topics.length, pending: pending.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ error: errMsg(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
