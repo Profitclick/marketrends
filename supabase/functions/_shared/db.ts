@@ -27,10 +27,6 @@ export interface DbQuery<T = Row> extends PromiseLike<DbResult<T>> {
   order(column: string, opts?: { ascending?: boolean }): DbQuery<T>;
   limit(n: number): DbQuery<T>;
   maybeSingle(): Promise<DbSingle<T>>;
-  insert(values: unknown): Promise<DbResult<T>>;
-  upsert(values: unknown, opts?: { onConflict?: string }): Promise<DbResult<T>>;
-  update(values: unknown): DbQuery<T>;
-  delete(): DbQuery<T>;
 }
 
 /** Table entry point: mirrors PostgrestQueryBuilder before .select() is called. */
