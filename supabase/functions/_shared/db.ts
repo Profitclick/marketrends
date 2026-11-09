@@ -33,8 +33,17 @@ export interface DbQuery<T = Row> extends PromiseLike<DbResult<T>> {
   delete(): DbQuery<T>;
 }
 
+/** Table entry point: mirrors PostgrestQueryBuilder before .select() is called. */
+export interface DbFrom {
+  select(columns?: string): DbQuery;
+  insert(values: unknown): Promise<DbResult>;
+  upsert(values: unknown, opts?: { onConflict?: string }): Promise<DbResult>;
+  update(values: unknown): DbQuery;
+  delete(): DbQuery;
+}
+
 export interface DbClient {
-  from(table: string): DbQuery;
+  from(table: string): DbFrom;
   rpc(fn: string, args?: Record<string, unknown>): Promise<DbResult>;
 }
 
