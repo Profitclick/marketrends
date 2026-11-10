@@ -274,17 +274,20 @@ Deno.serve(async (req) => {
     }
 
     // Shared evergreen guard before any AI generation; dry_run returns verdicts with no writes.
-    const cache: { titles?: any[] } = {};
-    const guarded = new Map<string, any>();
+    const cache: { titles?: TitleEntry[] } = {};
+    const guarded = new Map<string, GuardResult | { decision: string; barrier: string; reason: string; match: { type: string; ref: string; title: string } }>();
     for (const intent of intents) {
-      const collision = await slugCollision(supabase, intent.target_slug);
+      const slug = str(intent.target_slug);
+      const keyword = str(intent.keyword);
+      const cluster = str(intent.search_cluster);
+      const collision = await slugCollision(supabase, slug);
       const g = collision
         ? { decision: "SKIP_DUPLICATE", barrier: "slug_collision", reason: "slug exists in another table", match: { type: collision.split(":")[0], ref: collision.split(":")[1], title: collision } }
-        : await evergreenGuard(supabase, key, { type: "intent", slug: intent.target_slug, title: intent.keyword, text: intent.keyword, topics: [intent.search_cluster].filter(Boolean) }, { cache });
-      guarded.set(intent.id, g);
+        : await evergreenGuard(supabase, key, { type: "intent", slug, title: keyword, text: keyword, topics: [cluster].filter(Boolean) }, { cache });
+      guarded.set(str(intent.id), g);
     }
     if (dryRun) {
-      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i: any) => ({ slug: i.target_slug, ...guarded.get(i.id) })) }),
+      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i) => ({ slug: str(i.target_slug), ...guarded.get(str(i.id)) })) }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
