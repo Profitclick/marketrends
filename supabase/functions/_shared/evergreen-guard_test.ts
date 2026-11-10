@@ -1,7 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { evergreenGuard } from "./evergreen-guard.ts";
 import type { MatchCandidate } from "./dupe.ts";
-import type { DbClient, DbQuery, DbResult } from "./db.ts";
+import type { DbClient, DbFrom, DbQuery, DbResult } from "./db.ts";
 
 // Rows mirror the current guides / comparison_pages tables.
 const ROWS: Record<string, { slug: string; title: string }[]> = {
@@ -33,7 +33,7 @@ function mockDb(matches: MatchCandidate[] = []) {
     return b as unknown as DbQuery;
   };
   const db: DbClient = {
-    from: q,
+    from: (table: string) => q(table) as unknown as DbFrom,
     rpc: () => Promise.resolve({ data: matches as unknown as Record<string, unknown>[], error: null }),
   };
   return { writes, db };
