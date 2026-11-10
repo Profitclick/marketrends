@@ -46,9 +46,9 @@ export const RecommendedForYou = ({ limit = 4, excludeId }: Props) => {
       if (lastId) {
         const { data: rels } = await supabase
           .from("article_relations")
-          .select("related_article_id, similarity")
+          .select("related_article_id, similarity_score")
           .eq("article_id", lastId)
-          .order("similarity", { ascending: false })
+          .order("similarity_score", { ascending: false })
           .limit(20);
         const relIds = (rels || []).map((r: any) => r.related_article_id).filter(Boolean);
         if (relIds.length) {
