@@ -41,7 +41,7 @@ const slugify = (s: string) =>
     .replace(/[æå]/g, "a").replace(/ø/g, "o")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-function buildPrompt(intent: any, related: any) {
+function buildPrompt(intent: IntentRow, related: { topic?: Row | null; entity?: Row | null; secondary?: Row | null }) {
   return `Skriv en søkeintent-side for keyword "${intent.keyword}" (intent: ${intent.intent_type}, template: ${intent.template}) på norsk med norsk kontekst.
 ${related.topic ? `Tilknyttet tema: ${related.topic.name}.` : ""}
 ${related.entity ? `Tilknyttet entitet: ${related.entity.name} (${related.entity.entity_type || ""}).` : ""}
@@ -66,7 +66,7 @@ Returner JSON med disse feltene:
 }
 
 // Quality validation — returns per-check results + score 0-100
-function validate(out: any, intent: any) {
+function validate(out: AiOut, _intent: IntentRow) {
   const checks: Record<string, boolean> = {
     has_title: !!(out.title && out.title.length >= 15 && out.title.length <= 90),
     has_meta_title: !!(out.meta_title && out.meta_title.length <= 65),
@@ -86,10 +86,10 @@ function validate(out: any, intent: any) {
   return { checks, score, passed, total, ok: score >= 80 };
 }
 
-async function buildInternalLinks(supabase: any, intent: any) {
+async function buildInternalLinks(supabase: DbClient, intent: IntentRow) {
   const sourceType = "intent";
   const sourceSlug = intent.target_slug;
-  const links: any[] = [];
+  const links: Record<string, unknown>[] = [];
 
   // Cluster siblings
   if (intent.search_cluster) {
