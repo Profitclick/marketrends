@@ -297,8 +297,9 @@ Deno.serve(async (req) => {
       .order("priority_score", { ascending: false }).limit(limit);
     if (ids?.length) q = supabase.from("search_intents").select("*").in("id", ids);
 
-    const { data: intents } = await q;
-    if (!intents?.length) {
+    const { data: intentsRaw } = await q;
+    const intents = (intentsRaw ?? []) as unknown as IntentRow[];
+    if (!intents.length) {
       return new Response(JSON.stringify({ generated: 0, message: "Nothing to generate" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -322,7 +323,7 @@ Deno.serve(async (req) => {
     }
 
     let generated = 0, errors = 0, duplicates = 0, merged = 0, rejected = 0, linksCreated = 0;
-    const decisions: any[] = [];
+    const decisions: Record<string, unknown>[] = [];
 
     for (const intent of intents) {
       try {
@@ -437,7 +438,7 @@ Deno.serve(async (req) => {
           quality_score: validation.score,
           validation,
           geo_blocks: buildGeoBlocks(out),
-          embedding: verdict.embedding as any,
+          embedding: verdict.embedding as unknown,
           embedded_at: new Date().toISOString(),
           meta: {
             ...(typeof intent.meta === "object" && intent.meta !== null ? intent.meta as Record<string, unknown> : {}),
@@ -457,25 +458,25 @@ Deno.serve(async (req) => {
 
         // Re-fetch to have the fresh row (with published status) for link building
         const { data: fresh } = await supabase.from("search_intents").select("*").eq("id", intent.id).maybeSingle();
-        if (fresh) linksCreated += await buildInternalLinks(supabase, fresh);
+        if (fresh) linksCreated += await buildInternalLinks(supabase, fresh as unknown as IntentRow);
 
         generated++;
         await new Promise((r) => setTimeout(r, 3000));
 
-      } catch (e: any) {
+      } catch (e) {
         console.error("intent", intent.target_slug, e);
         errors++;
         await supabase.from("search_intents").update({
           content_status: "failed",
-          meta: { ...(intent.meta || {}), last_error: String(e?.message || e).slice(0, 500) },
+          meta: { ...(intent.meta || {}), last_error: errMsg(e).slice(0, 500) },
         }).eq("id", intent.id);
       }
     }
 
     return new Response(JSON.stringify({ generated, errors, duplicates, merged, rejected, linksCreated, processed: intents.length, decisions }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ error: errMsg(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
