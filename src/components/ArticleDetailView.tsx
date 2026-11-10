@@ -18,7 +18,6 @@ import { FreshnessBadge } from "@/components/FreshnessBadge";
 import { ReadingProgress } from "@/components/ReadingProgress";
 import { RecommendedForYou } from "@/components/RecommendedForYou";
 import { ContextualLinks } from "@/components/ContextualLinks";
-import { SourcesPanel } from "@/components/SourcesPanel";
 import { SEOHead } from "@/components/SEOHead";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Home, ChevronRight } from "lucide-react";
@@ -50,6 +49,14 @@ interface Article {
 
 const BASE_URL = "https://marketrends.no";
 
+const sourceHostname = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
 interface ArticleDetailViewProps {
   article: Article;
   allArticles: Article[];
@@ -63,6 +70,15 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
   const articleImage = article.image_url || getCategoryFallbackImage(article.category, articleIndex);
   const canonicalUrl = `${BASE_URL}/${article.slug}`;
   const wordCount = article.content.split(/\s+/).filter((w) => w.length > 0).length;
+  const primarySourceHost = sourceHostname(article.source_url);
+  // The primary source_url is authoritative for the original article. Keep only
+  // genuinely supplemental archived sources; conflicting URLs from the same
+  // publisher are suppressed to avoid contradictory source provenance.
+  const supplementalSources = (article.archived_sources || []).filter((source) => {
+    if (!source || source === article.source_url) return false;
+    const host = sourceHostname(source);
+    return !host || !primarySourceHost || host !== primarySourceHost;
+  });
 
   useEffect(() => {
     logRead({
@@ -208,16 +224,16 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
               </div>
             )}
 
-            {article.archived_sources && article.archived_sources.length > 0 && (
+            {supplementalSources.length > 0 && (
               <div className="mb-8 pt-6 border-t border-border">
                 <h3
                   className="font-semibold mb-3 text-[11px] uppercase tracking-widest text-muted-foreground"
                   style={{ fontFamily: "'Inter', sans-serif" }}
                 >
-                  Kilder
+                  Supplerende kilder
                 </h3>
                 <ul className="text-sm text-muted-foreground space-y-1.5">
-                  {article.archived_sources.map((source, idx) => (
+                  {supplementalSources.map((source, idx) => (
                     <li key={idx}>
                       <a
                         href={source}
@@ -267,7 +283,6 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
               allArticles={allArticles}
               variant="footer"
             />
-            <SourcesPanel articleId={article.id} />
             <ContextualLinks sourceType="article" sourceSlug={article.slug} title="Mer på Marketrends" />
           </article>
 
