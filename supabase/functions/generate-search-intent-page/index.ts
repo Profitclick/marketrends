@@ -231,8 +231,8 @@ async function mergeIntoExisting(supabase: DbClient, key: string, targetSlug: st
 
 EKSISTERENDE SIDE (JSON):
 ${JSON.stringify({
-    title: existing.meta?.title, summary: existing.meta?.summary,
-    content: (existing.meta?.content || "").slice(0, 6000),
+    title: em.title, summary: em.summary,
+    content: str(em.content).slice(0, 6000),
     geo: existing.geo_blocks,
   }).slice(0, 12000)}
 
@@ -252,8 +252,8 @@ Returner oppdatert JSON med samme felter: title, meta_title, meta_description, s
     last_validated_at: new Date().toISOString(),
     geo_blocks: buildGeoBlocks(out),
     meta: {
-      ...(existing.meta || {}),
-      title: out.title || existing.meta?.title,
+      ...em,
+      title: out.title || em.title,
       meta_title: out.meta_title,
       meta_description: out.meta_description,
       summary: out.summary,
@@ -261,7 +261,7 @@ Returner oppdatert JSON med samme felter: title, meta_title, meta_description, s
       faq_schema: faqSchema,
       speakable_schema: speakable,
       merged_at: new Date().toISOString(),
-      merge_count: Number(existing.meta?.merge_count || 0) + 1,
+      merge_count: Number(em.merge_count || 0) + 1,
     },
   }).eq("id", existing.id);
 
@@ -269,12 +269,12 @@ Returner oppdatert JSON med samme felter: title, meta_title, meta_description, s
   try {
     const vec = await embed(`${out.title}\n\n${out.content}`, key);
     await supabase.from("search_intents")
-      .update({ embedding: vec as any, embedded_at: new Date().toISOString() })
+      .update({ embedding: vec as unknown, embedded_at: new Date().toISOString() })
       .eq("id", existing.id);
   } catch (e) { console.error("merge embed", e); }
 
   const { data: refreshed } = await supabase.from("search_intents").select("*").eq("id", existing.id).maybeSingle();
-  const links = refreshed ? await buildInternalLinks(supabase, refreshed) : 0;
+  const links = refreshed ? await buildInternalLinks(supabase, refreshed as unknown as IntentRow) : 0;
   return { merged: true, target: targetSlug, links };
 }
 
