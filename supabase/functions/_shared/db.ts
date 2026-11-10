@@ -34,7 +34,7 @@ export interface DbQuery<T = Row> extends PromiseLike<DbResult<T>> {
 export interface DbFrom {
   select(columns?: string): DbQuery;
   insert(values: unknown): PromiseLike<DbResult>;
-  upsert(values: unknown, opts?: { onConflict?: string }): PromiseLike<DbResult>;
+  upsert(values: unknown, opts?: { onConflict?: string; ignoreDuplicates?: boolean }): PromiseLike<DbResult>;
   update(values: unknown): DbQuery;
   delete(): DbQuery;
 }
