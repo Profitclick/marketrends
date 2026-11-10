@@ -158,13 +158,13 @@ async function buildInternalLinks(supabase: DbClient, intent: IntentRow) {
     ? await supabase.from("article_clusters").select("articles!inner(slug,title,published)")
         .eq("cluster_slug", intent.search_cluster).eq("articles.published", true)
         .order("score", { ascending: false }).limit(4)
-    : { data: [] as any[] };
-  const arts = (rows || []).map((r: any) => r.articles);
+    : { data: [] as Row[] };
+  const arts = (rows || []).map((r) => r.articles as Row | null);
   for (const a of arts) {
-    if (!a.slug) continue;
+    if (!a || !a.slug) continue;
     links.push({
       source_type: sourceType, source_slug: sourceSlug,
-      target_type: "article", target_slug: a.slug, anchor: a.title, relevance_score: 60,
+      target_type: "article", target_slug: str(a.slug), anchor: str(a.title), relevance_score: 60,
     });
   }
 
@@ -176,7 +176,7 @@ async function buildInternalLinks(supabase: DbClient, intent: IntentRow) {
 }
 
 // Exact-slug collision on another surface — cheap guard before spending AI credits.
-async function slugCollision(supabase: any, slug: string) {
+async function slugCollision(supabase: DbClient, slug: string) {
   const [k, g, c] = await Promise.all([
     supabase.from("knowledge_pages").select("slug").eq("slug", slug).maybeSingle(),
     supabase.from("guides").select("slug").eq("slug", slug).maybeSingle(),
@@ -188,7 +188,7 @@ async function slugCollision(supabase: any, slug: string) {
   return null;
 }
 
-function buildGeoBlocks(out: any) {
+function buildGeoBlocks(out: AiOut) {
   return {
     tldr: out.tldr,
     quick_answer: out.quick_answer,
@@ -201,12 +201,12 @@ function buildGeoBlocks(out: any) {
   };
 }
 
-function buildSchemas(out: any) {
+function buildSchemas(out: AiOut) {
   return {
     faqSchema: {
       "@context": "https://schema.org",
       "@type": "FAQPage",
-      mainEntity: (out.faq || []).map((f: any) => ({
+      mainEntity: (out.faq || []).map((f: { q: string; a: string }) => ({
         "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a },
       })),
     },
@@ -221,10 +221,11 @@ function buildSchemas(out: any) {
  * Merge newly verified information into an already-published intent page instead of
  * publishing a duplicate. Regenerates TLDR, FAQ, speakable schema, citations and links.
  */
-async function mergeIntoExisting(supabase: any, key: string, targetSlug: string, fresh: any) {
+async function mergeIntoExisting(supabase: DbClient, key: string, targetSlug: string, fresh: AiOut) {
   const { data: existing } = await supabase.from("search_intents").select("*")
     .eq("target_slug", targetSlug).maybeSingle();
   if (!existing) return { merged: false, reason: "target not found" };
+  const em = (existing.meta ?? {}) as Record<string, unknown>;
 
   const prompt = `Du oppdaterer en eksisterende norsk fagartikkel med ny, verifisert informasjon. Ikke gjenta innhold, ikke fjern korrekt eksisterende informasjon — flett sammen.
 
