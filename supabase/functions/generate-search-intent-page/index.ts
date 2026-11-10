@@ -13,7 +13,7 @@ import { evaluateDuplicate, recordVerdict, type Candidate } from "../_shared/dup
 import { embed } from "../_shared/semantic.ts";
 import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { str, type DbClient, type Row } from "../_shared/db.ts";
+import { errMsg, str, type DbClient, type Row } from "../_shared/db.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
