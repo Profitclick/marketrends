@@ -21,26 +21,27 @@ export interface DbQuery<T = Row> extends PromiseLike<DbResult<T>> {
   select(columns?: string): DbQuery<T>;
   eq(column: string, value: unknown): DbQuery<T>;
   neq(column: string, value: unknown): DbQuery<T>;
+  in(column: string, values: unknown[]): DbQuery<T>;
   not(column: string, operator: string, value: unknown): DbQuery<T>;
   ilike(column: string, pattern: string): DbQuery<T>;
   gte(column: string, value: unknown): DbQuery<T>;
   order(column: string, opts?: { ascending?: boolean }): DbQuery<T>;
   limit(n: number): DbQuery<T>;
-  maybeSingle(): Promise<DbSingle<T>>;
+  maybeSingle(): PromiseLike<DbSingle<T>>;
 }
 
 /** Table entry point: mirrors PostgrestQueryBuilder before .select() is called. */
 export interface DbFrom {
   select(columns?: string): DbQuery;
-  insert(values: unknown): Promise<DbResult>;
-  upsert(values: unknown, opts?: { onConflict?: string }): Promise<DbResult>;
+  insert(values: unknown): PromiseLike<DbResult>;
+  upsert(values: unknown, opts?: { onConflict?: string; ignoreDuplicates?: boolean }): PromiseLike<DbResult>;
   update(values: unknown): DbQuery;
   delete(): DbQuery;
 }
 
 export interface DbClient {
   from(table: string): DbFrom;
-  rpc(fn: string, args?: Record<string, unknown>): Promise<DbResult>;
+  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<DbResult>;
 }
 
 /** Narrow an unknown row field to a string, or fall back. */

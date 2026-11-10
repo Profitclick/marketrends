@@ -4,7 +4,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
 import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
-import { errMsg } from "../_shared/db.ts";
+import { DbClient, errMsg } from "../_shared/db.ts";
 
 type TopicRow = { id: string; slug: string; name: string; description: string | null; category_hint: string | null; article_count: number };
 type FaqItem = { q: string; a: string };
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  ) as unknown as DbClient;
 
   try {
     const body = await req.json().catch(() => ({}));

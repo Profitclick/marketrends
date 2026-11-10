@@ -11,14 +11,44 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { evaluateDuplicate, recordVerdict, type Candidate } from "../_shared/dupe.ts";
 import { embed } from "../_shared/semantic.ts";
-import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
+import { errMsg, str, type DbClient, type Row } from "../_shared/db.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+interface IntentRow {
+  id: string;
+  keyword: string;
+  target_slug: string;
+  intent_type?: string;
+  template?: string;
+  search_cluster?: string | null;
+  topic_id?: string | null;
+  entity_id?: string | null;
+  secondary_entity_id?: string | null;
+  content_status?: string;
+  meta?: Record<string, unknown> | null;
+}
 
-async function aiJson(prompt: string, key: string) {
+interface AiOut {
+  title?: string;
+  meta_title?: string;
+  meta_description?: string;
+  summary?: string;
+  tldr?: string;
+  quick_answer?: string;
+  key_facts?: string[];
+  why_it_matters?: string;
+  expert_summary?: string;
+  content?: string;
+  faq?: { q: string; a: string }[];
+  related_questions?: string[];
+  sources?: { title?: string; url?: string; publisher?: string }[];
+}
+
+async function aiJson(prompt: string, key: string): Promise<AiOut> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
@@ -40,7 +70,7 @@ const slugify = (s: string) =>
     .replace(/[æå]/g, "a").replace(/ø/g, "o")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-function buildPrompt(intent: any, related: any) {
+function buildPrompt(intent: IntentRow, related: { topic?: Row | null; entity?: Row | null; secondary?: Row | null }) {
   return `Skriv en søkeintent-side for keyword "${intent.keyword}" (intent: ${intent.intent_type}, template: ${intent.template}) på norsk med norsk kontekst.
 ${related.topic ? `Tilknyttet tema: ${related.topic.name}.` : ""}
 ${related.entity ? `Tilknyttet entitet: ${related.entity.name} (${related.entity.entity_type || ""}).` : ""}
@@ -65,7 +95,7 @@ Returner JSON med disse feltene:
 }
 
 // Quality validation — returns per-check results + score 0-100
-function validate(out: any, intent: any) {
+function validate(out: AiOut, _intent: IntentRow) {
   const checks: Record<string, boolean> = {
     has_title: !!(out.title && out.title.length >= 15 && out.title.length <= 90),
     has_meta_title: !!(out.meta_title && out.meta_title.length <= 65),
@@ -85,10 +115,10 @@ function validate(out: any, intent: any) {
   return { checks, score, passed, total, ok: score >= 80 };
 }
 
-async function buildInternalLinks(supabase: any, intent: any) {
+async function buildInternalLinks(supabase: DbClient, intent: IntentRow) {
   const sourceType = "intent";
   const sourceSlug = intent.target_slug;
-  const links: any[] = [];
+  const links: Record<string, unknown>[] = [];
 
   // Cluster siblings
   if (intent.search_cluster) {
@@ -128,13 +158,13 @@ async function buildInternalLinks(supabase: any, intent: any) {
     ? await supabase.from("article_clusters").select("articles!inner(slug,title,published)")
         .eq("cluster_slug", intent.search_cluster).eq("articles.published", true)
         .order("score", { ascending: false }).limit(4)
-    : { data: [] as any[] };
-  const arts = (rows || []).map((r: any) => r.articles);
+    : { data: [] as Row[] };
+  const arts = (rows || []).map((r) => r.articles as Row | null);
   for (const a of arts) {
-    if (!a.slug) continue;
+    if (!a || !a.slug) continue;
     links.push({
       source_type: sourceType, source_slug: sourceSlug,
-      target_type: "article", target_slug: a.slug, anchor: a.title, relevance_score: 60,
+      target_type: "article", target_slug: str(a.slug), anchor: str(a.title), relevance_score: 60,
     });
   }
 
@@ -146,7 +176,7 @@ async function buildInternalLinks(supabase: any, intent: any) {
 }
 
 // Exact-slug collision on another surface — cheap guard before spending AI credits.
-async function slugCollision(supabase: any, slug: string) {
+async function slugCollision(supabase: DbClient, slug: string) {
   const [k, g, c] = await Promise.all([
     supabase.from("knowledge_pages").select("slug").eq("slug", slug).maybeSingle(),
     supabase.from("guides").select("slug").eq("slug", slug).maybeSingle(),
@@ -158,7 +188,7 @@ async function slugCollision(supabase: any, slug: string) {
   return null;
 }
 
-function buildGeoBlocks(out: any) {
+function buildGeoBlocks(out: AiOut) {
   return {
     tldr: out.tldr,
     quick_answer: out.quick_answer,
@@ -171,12 +201,12 @@ function buildGeoBlocks(out: any) {
   };
 }
 
-function buildSchemas(out: any) {
+function buildSchemas(out: AiOut) {
   return {
     faqSchema: {
       "@context": "https://schema.org",
       "@type": "FAQPage",
-      mainEntity: (out.faq || []).map((f: any) => ({
+      mainEntity: (out.faq || []).map((f: { q: string; a: string }) => ({
         "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a },
       })),
     },
@@ -191,17 +221,18 @@ function buildSchemas(out: any) {
  * Merge newly verified information into an already-published intent page instead of
  * publishing a duplicate. Regenerates TLDR, FAQ, speakable schema, citations and links.
  */
-async function mergeIntoExisting(supabase: any, key: string, targetSlug: string, fresh: any) {
+async function mergeIntoExisting(supabase: DbClient, key: string, targetSlug: string, fresh: AiOut) {
   const { data: existing } = await supabase.from("search_intents").select("*")
     .eq("target_slug", targetSlug).maybeSingle();
   if (!existing) return { merged: false, reason: "target not found" };
+  const em = (existing.meta ?? {}) as Record<string, unknown>;
 
   const prompt = `Du oppdaterer en eksisterende norsk fagartikkel med ny, verifisert informasjon. Ikke gjenta innhold, ikke fjern korrekt eksisterende informasjon — flett sammen.
 
 EKSISTERENDE SIDE (JSON):
 ${JSON.stringify({
-    title: existing.meta?.title, summary: existing.meta?.summary,
-    content: (existing.meta?.content || "").slice(0, 6000),
+    title: em.title, summary: em.summary,
+    content: str(em.content).slice(0, 6000),
     geo: existing.geo_blocks,
   }).slice(0, 12000)}
 
@@ -221,8 +252,8 @@ Returner oppdatert JSON med samme felter: title, meta_title, meta_description, s
     last_validated_at: new Date().toISOString(),
     geo_blocks: buildGeoBlocks(out),
     meta: {
-      ...(existing.meta || {}),
-      title: out.title || existing.meta?.title,
+      ...em,
+      title: out.title || em.title,
       meta_title: out.meta_title,
       meta_description: out.meta_description,
       summary: out.summary,
@@ -230,7 +261,7 @@ Returner oppdatert JSON med samme felter: title, meta_title, meta_description, s
       faq_schema: faqSchema,
       speakable_schema: speakable,
       merged_at: new Date().toISOString(),
-      merge_count: Number(existing.meta?.merge_count || 0) + 1,
+      merge_count: Number(em.merge_count || 0) + 1,
     },
   }).eq("id", existing.id);
 
@@ -238,12 +269,12 @@ Returner oppdatert JSON med samme felter: title, meta_title, meta_description, s
   try {
     const vec = await embed(`${out.title}\n\n${out.content}`, key);
     await supabase.from("search_intents")
-      .update({ embedding: vec as any, embedded_at: new Date().toISOString() })
+      .update({ embedding: vec as unknown, embedded_at: new Date().toISOString() })
       .eq("id", existing.id);
   } catch (e) { console.error("merge embed", e); }
 
   const { data: refreshed } = await supabase.from("search_intents").select("*").eq("id", existing.id).maybeSingle();
-  const links = refreshed ? await buildInternalLinks(supabase, refreshed) : 0;
+  const links = refreshed ? await buildInternalLinks(supabase, refreshed as unknown as IntentRow) : 0;
   return { merged: true, target: targetSlug, links };
 }
 
@@ -253,7 +284,7 @@ Deno.serve(async (req) => {
   const gate = await requireAdmin(req);
   if (!gate.ok) return unauthorized(corsHeaders);
   const key = Deno.env.get("LOVABLE_API_KEY")!;
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!) as unknown as DbClient;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -266,41 +297,45 @@ Deno.serve(async (req) => {
       .order("priority_score", { ascending: false }).limit(limit);
     if (ids?.length) q = supabase.from("search_intents").select("*").in("id", ids);
 
-    const { data: intents } = await q;
-    if (!intents?.length) {
+    const { data: intentsRaw } = await q;
+    const intents = (intentsRaw ?? []) as unknown as IntentRow[];
+    if (!intents.length) {
       return new Response(JSON.stringify({ generated: 0, message: "Nothing to generate" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Shared evergreen guard before any AI generation; dry_run returns verdicts with no writes.
-    const cache: { titles?: any[] } = {};
-    const guarded = new Map<string, any>();
+    const cache: { titles?: TitleEntry[] } = {};
+    const guarded = new Map<string, GuardResult>();
     for (const intent of intents) {
-      const collision = await slugCollision(supabase, intent.target_slug);
+      const slug = str(intent.target_slug);
+      const keyword = str(intent.keyword);
+      const cluster = str(intent.search_cluster);
+      const collision = await slugCollision(supabase, slug);
       const g = collision
-        ? { decision: "SKIP_DUPLICATE", barrier: "slug_collision", reason: "slug exists in another table", match: { type: collision.split(":")[0], ref: collision.split(":")[1], title: collision } }
-        : await evergreenGuard(supabase, key, { type: "intent", slug: intent.target_slug, title: intent.keyword, text: intent.keyword, topics: [intent.search_cluster].filter(Boolean) }, { cache });
-      guarded.set(intent.id, g);
+        ? { decision: "SKIP_DUPLICATE" as const, barrier: "slug_collision", reason: "slug exists in another table", match: { type: collision.split(":")[0], ref: collision.split(":")[1], title: collision } }
+        : await evergreenGuard(supabase, key, { type: "intent", slug, title: keyword, text: keyword, topics: [cluster].filter(Boolean) }, { cache });
+      guarded.set(str(intent.id), g);
     }
     if (dryRun) {
-      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i: any) => ({ slug: i.target_slug, ...guarded.get(i.id) })) }),
+      return new Response(JSON.stringify({ dry_run: true, verdicts: intents.map((i) => ({ slug: str(i.target_slug), ...guarded.get(str(i.id)) })) }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     let generated = 0, errors = 0, duplicates = 0, merged = 0, rejected = 0, linksCreated = 0;
-    const decisions: any[] = [];
+    const decisions: Record<string, unknown>[] = [];
 
     for (const intent of intents) {
       try {
         if (!force && intent.content_status === "published") continue;
 
-        const collision = await slugCollision(supabase, intent.target_slug);
+        const collision = await slugCollision(supabase, str(intent.target_slug));
         if (collision && !force) {
           await supabase.from("search_intents").update({
             content_status: "skipped", duplicate_of: collision,
           }).eq("id", intent.id);
           await recordVerdict(supabase, {
-            type: "intent", ref: intent.target_slug, title: intent.keyword, text: "",
+            type: "intent", ref: str(intent.target_slug), title: str(intent.keyword), text: "",
           } as Candidate, {
             decision: "duplicate", score: 1, signals: null,
             match: { content_type: collision.split(":")[0], ref: collision.split(":")[1], title: collision, similarity: 1 },
@@ -311,9 +346,10 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const g = guarded.get(intent.id);
+        const g = guarded.get(str(intent.id));
+        if (!g) continue;
         if (!force && g.decision !== "CREATE_NEW") {
-          await logGuard(supabase, { type: "intent", slug: intent.target_slug, title: intent.keyword }, g, "blocked-pre-generation");
+          await logGuard(supabase, { type: "intent", slug: str(intent.target_slug), title: str(intent.keyword) }, g, "blocked-pre-generation");
           if (g.decision === "SKIP_DUPLICATE") {
             await supabase.from("search_intents").update({ content_status: "skipped", duplicate_of: `${g.match?.type}:${g.match?.ref}` }).eq("id", intent.id);
             duplicates++;
@@ -350,8 +386,8 @@ Deno.serve(async (req) => {
         // ---- Semantic Duplicate Detection V2 (on the generated content) ----
         const candidate: Candidate = {
           type: "intent",
-          ref: intent.target_slug,
-          title: out.title || intent.keyword,
+          ref: str(intent.target_slug),
+          title: out.title || str(intent.keyword),
           text: [out.summary, out.quick_answer, out.content].filter(Boolean).join("\n\n"),
           entities: [entityRes.data?.name, secRes.data?.name].filter(Boolean) as string[],
           topics: [topicRes.data?.name, intent.search_cluster].filter(Boolean) as string[],
@@ -402,10 +438,10 @@ Deno.serve(async (req) => {
           quality_score: validation.score,
           validation,
           geo_blocks: buildGeoBlocks(out),
-          embedding: verdict.embedding as any,
+          embedding: verdict.embedding as unknown,
           embedded_at: new Date().toISOString(),
           meta: {
-            ...intent.meta,
+            ...(typeof intent.meta === "object" && intent.meta !== null ? intent.meta as Record<string, unknown> : {}),
             title: out.title,
             meta_title: out.meta_title,
             meta_description: out.meta_description,
@@ -422,25 +458,25 @@ Deno.serve(async (req) => {
 
         // Re-fetch to have the fresh row (with published status) for link building
         const { data: fresh } = await supabase.from("search_intents").select("*").eq("id", intent.id).maybeSingle();
-        if (fresh) linksCreated += await buildInternalLinks(supabase, fresh);
+        if (fresh) linksCreated += await buildInternalLinks(supabase, fresh as unknown as IntentRow);
 
         generated++;
         await new Promise((r) => setTimeout(r, 3000));
 
-      } catch (e: any) {
+      } catch (e) {
         console.error("intent", intent.target_slug, e);
         errors++;
         await supabase.from("search_intents").update({
           content_status: "failed",
-          meta: { ...(intent.meta || {}), last_error: String(e?.message || e).slice(0, 500) },
+          meta: { ...(intent.meta || {}), last_error: errMsg(e).slice(0, 500) },
         }).eq("id", intent.id);
       }
     }
 
     return new Response(JSON.stringify({ generated, errors, duplicates, merged, rejected, linksCreated, processed: intents.length, decisions }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ error: errMsg(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
