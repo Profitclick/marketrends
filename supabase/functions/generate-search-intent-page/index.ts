@@ -13,6 +13,7 @@ import { evaluateDuplicate, recordVerdict, type Candidate } from "../_shared/dup
 import { embed } from "../_shared/semantic.ts";
 import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
+import type { DbClient } from "../_shared/db.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -253,7 +254,7 @@ Deno.serve(async (req) => {
   const gate = await requireAdmin(req);
   if (!gate.ok) return unauthorized(corsHeaders);
   const key = Deno.env.get("LOVABLE_API_KEY")!;
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!) as unknown as DbClient;
 
   try {
     const body = await req.json().catch(() => ({}));
