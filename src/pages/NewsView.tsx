@@ -21,6 +21,7 @@ import { MostReadThisWeek } from "@/components/MostReadThisWeek";
 import { RecommendedForYou } from "@/components/RecommendedForYou";
 import { SEOHead } from "@/components/SEOHead";
 import { Skeleton } from "@/components/ui/skeleton";
+import NotFound from "./NotFound";
 
 interface Article {
   id: string;
@@ -173,6 +174,13 @@ const NewsView = () => {
 
   if (selectedArticle) {
     return <ArticleDetailView article={selectedArticle} allArticles={articles} />;
+  }
+
+  // /:slug is the article route. A slug that does not resolve to a published
+  // article must render the explicit 404 UI instead of silently falling back
+  // to the homepage. The hosting layer still determines the HTTP status.
+  if (slug) {
+    return <NotFound />;
   }
 
   const categories = [
