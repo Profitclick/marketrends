@@ -298,13 +298,13 @@ Deno.serve(async (req) => {
       try {
         if (!force && intent.content_status === "published") continue;
 
-        const collision = await slugCollision(supabase, intent.target_slug);
+        const collision = await slugCollision(supabase, str(intent.target_slug));
         if (collision && !force) {
           await supabase.from("search_intents").update({
             content_status: "skipped", duplicate_of: collision,
           }).eq("id", intent.id);
           await recordVerdict(supabase, {
-            type: "intent", ref: intent.target_slug, title: intent.keyword, text: "",
+            type: "intent", ref: str(intent.target_slug), title: str(intent.keyword), text: "",
           } as Candidate, {
             decision: "duplicate", score: 1, signals: null,
             match: { content_type: collision.split(":")[0], ref: collision.split(":")[1], title: collision, similarity: 1 },
@@ -315,9 +315,10 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const g = guarded.get(intent.id);
+        const g = guarded.get(str(intent.id));
+        if (!g) continue;
         if (!force && g.decision !== "CREATE_NEW") {
-          await logGuard(supabase, { type: "intent", slug: intent.target_slug, title: intent.keyword }, g, "blocked-pre-generation");
+          await logGuard(supabase, { type: "intent", slug: str(intent.target_slug), title: str(intent.keyword) }, g, "blocked-pre-generation");
           if (g.decision === "SKIP_DUPLICATE") {
             await supabase.from("search_intents").update({ content_status: "skipped", duplicate_of: `${g.match?.type}:${g.match?.ref}` }).eq("id", intent.id);
             duplicates++;
