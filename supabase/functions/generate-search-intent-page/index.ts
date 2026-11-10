@@ -11,9 +11,9 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { evaluateDuplicate, recordVerdict, type Candidate } from "../_shared/dupe.ts";
 import { embed } from "../_shared/semantic.ts";
-import { evergreenGuard, logGuard } from "../_shared/evergreen-guard.ts";
+import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import type { DbClient } from "../_shared/db.ts";
+import { str, type DbClient } from "../_shared/db.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
