@@ -21,6 +21,7 @@ export interface DbQuery<T = Row> extends PromiseLike<DbResult<T>> {
   select(columns?: string): DbQuery<T>;
   eq(column: string, value: unknown): DbQuery<T>;
   neq(column: string, value: unknown): DbQuery<T>;
+  in(column: string, values: unknown[]): DbQuery<T>;
   not(column: string, operator: string, value: unknown): DbQuery<T>;
   ilike(column: string, pattern: string): DbQuery<T>;
   gte(column: string, value: unknown): DbQuery<T>;
