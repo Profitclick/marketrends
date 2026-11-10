@@ -4,6 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { generateSitemaps } from "./scripts/generate-sitemaps.mjs";
 import { prerender } from "./scripts/prerender.mjs";
+import { generate404 } from "./scripts/generate-404.mjs";
 
 // Public sitemaps are generated into the build output so they are served from https://marketrends.no.
 const sitemapPlugin = (env: Record<string, string>) => ({
@@ -20,6 +21,8 @@ const sitemapPlugin = (env: Record<string, string>) => ({
     // so a wrong homepage fallback canonical is never shipped for an expected SEO route.
     const p = await prerender(path.resolve(__dirname, "dist"), env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
     console.log(`[prerender] ${p.written} routes, ${p.articles} articles; sitemap ${p.sitemap}, missing ${p.missing}, unexpected ${p.unexpected}`);
+    const notFound = generate404(path.resolve(__dirname, "dist"));
+    console.log(`[404] generated ${notFound}`);
   },
 });
 
