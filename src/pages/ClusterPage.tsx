@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
+import { SEOHead } from "@/components/SEOHead";
 import { NewsFooter } from "@/components/NewsFooter";
 import { ArticleCard } from "@/components/ArticleCard";
 import { DiscoveryFooter } from "@/components/DiscoveryFooter";
@@ -83,10 +84,13 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
 
   return (
     <>
+      <SEOHead
+        title={title}
+        description={desc}
+        canonicalUrl={`https://marketrends.no/${cluster.slug}`}
+        ogType="website"
+      />
       <Helmet>
-        <title>{title}</title>
-        <meta name="description" content={desc} />
-        <link rel="canonical" href={`https://marketrends.no/${cluster.slug}`} />
         <script type="application/ld+json">{JSON.stringify({
           "@context": "https://schema.org",
           "@type": "CollectionPage",
