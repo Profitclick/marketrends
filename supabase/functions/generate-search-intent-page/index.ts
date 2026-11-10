@@ -275,14 +275,14 @@ Deno.serve(async (req) => {
 
     // Shared evergreen guard before any AI generation; dry_run returns verdicts with no writes.
     const cache: { titles?: TitleEntry[] } = {};
-    const guarded = new Map<string, GuardResult | { decision: string; barrier: string; reason: string; match: { type: string; ref: string; title: string } }>();
+    const guarded = new Map<string, GuardResult>();
     for (const intent of intents) {
       const slug = str(intent.target_slug);
       const keyword = str(intent.keyword);
       const cluster = str(intent.search_cluster);
       const collision = await slugCollision(supabase, slug);
       const g = collision
-        ? { decision: "SKIP_DUPLICATE", barrier: "slug_collision", reason: "slug exists in another table", match: { type: collision.split(":")[0], ref: collision.split(":")[1], title: collision } }
+        ? { decision: "SKIP_DUPLICATE" as const, barrier: "slug_collision", reason: "slug exists in another table", match: { type: collision.split(":")[0], ref: collision.split(":")[1], title: collision } }
         : await evergreenGuard(supabase, key, { type: "intent", slug, title: keyword, text: keyword, topics: [cluster].filter(Boolean) }, { cache });
       guarded.set(str(intent.id), g);
     }
@@ -355,8 +355,8 @@ Deno.serve(async (req) => {
         // ---- Semantic Duplicate Detection V2 (on the generated content) ----
         const candidate: Candidate = {
           type: "intent",
-          ref: intent.target_slug,
-          title: out.title || intent.keyword,
+          ref: str(intent.target_slug),
+          title: out.title || str(intent.keyword),
           text: [out.summary, out.quick_answer, out.content].filter(Boolean).join("\n\n"),
           entities: [entityRes.data?.name, secRes.data?.name].filter(Boolean) as string[],
           topics: [topicRes.data?.name, intent.search_cluster].filter(Boolean) as string[],
@@ -410,7 +410,7 @@ Deno.serve(async (req) => {
           embedding: verdict.embedding as any,
           embedded_at: new Date().toISOString(),
           meta: {
-            ...intent.meta,
+            ...(typeof intent.meta === "object" && intent.meta !== null ? intent.meta as Record<string, unknown> : {}),
             title: out.title,
             meta_title: out.meta_title,
             meta_description: out.meta_description,
