@@ -14,16 +14,32 @@ export const RelatedTopicsPanel = ({ topicId }: { topicId: string }) => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      // topic_relations has no PostgREST FK relationship to topics, so resolve in two steps.
+      const { data: relations } = await supabase
         .from("topic_relations")
-        .select("score, topics:related_topic_id (slug, name, article_count)")
+        .select("related_topic_id, score")
         .eq("topic_id", topicId)
         .order("score", { ascending: false })
         .limit(8);
       if (cancelled) return;
-      const list = (data || [])
-        .map((r: any) => r.topics)
-        .filter(Boolean);
+
+      const ids = (relations || []).map((r) => r.related_topic_id);
+      if (!ids.length) {
+        setTopics([]);
+        return;
+      }
+
+      const { data: topicRows } = await supabase
+        .from("topics")
+        .select("id, slug, name, article_count")
+        .in("id", ids);
+      if (cancelled) return;
+
+      const byId = new Map((topicRows || []).map((topic) => [topic.id, topic]));
+      const list: RelatedTopic[] = ids
+        .map((id) => byId.get(id))
+        .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic))
+        .map(({ slug, name, article_count }) => ({ slug, name, article_count }));
       setTopics(list);
     })();
     return () => { cancelled = true; };
