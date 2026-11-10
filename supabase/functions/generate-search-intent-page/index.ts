@@ -13,13 +13,42 @@ import { evaluateDuplicate, recordVerdict, type Candidate } from "../_shared/dup
 import { embed } from "../_shared/semantic.ts";
 import { evergreenGuard, logGuard, type GuardResult, type TitleEntry } from "../_shared/evergreen-guard.ts";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
-import { str, type DbClient } from "../_shared/db.ts";
+import { str, type DbClient, type Row } from "../_shared/db.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+interface IntentRow {
+  id: string;
+  keyword: string;
+  target_slug: string;
+  intent_type?: string;
+  template?: string;
+  search_cluster?: string | null;
+  topic_id?: string | null;
+  entity_id?: string | null;
+  secondary_entity_id?: string | null;
+  content_status?: string;
+  meta?: Record<string, unknown> | null;
+}
 
-async function aiJson(prompt: string, key: string) {
+interface AiOut {
+  title?: string;
+  meta_title?: string;
+  meta_description?: string;
+  summary?: string;
+  tldr?: string;
+  quick_answer?: string;
+  key_facts?: string[];
+  why_it_matters?: string;
+  expert_summary?: string;
+  content?: string;
+  faq?: { q: string; a: string }[];
+  related_questions?: string[];
+  sources?: { title?: string; url?: string; publisher?: string }[];
+}
+
+async function aiJson(prompt: string, key: string): Promise<AiOut> {
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
