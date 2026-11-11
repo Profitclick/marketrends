@@ -32,9 +32,9 @@ export const ArticleCard = ({
   const imageUrl = article.image_url || getCategoryFallbackImage(article.category, index);
 
   return (
-    <Link to={`/${article.slug}`} className="group block">
+    <Link to={`/${article.slug}`} className="group block h-full">
       {showImage && (
-        <div className="overflow-hidden mb-3">
+        <div className="overflow-hidden rounded-sm mb-4 bg-muted ring-1 ring-border/50">
           <img
             src={imageUrl}
             alt={article.title}
@@ -46,7 +46,7 @@ export const ArticleCard = ({
         </div>
       )}
       <span
-        className="text-[11px] font-bold uppercase tracking-widest text-destructive mb-1.5 block"
+        className="text-[10px] font-bold uppercase tracking-[0.14em] text-destructive mb-2 block"
         style={{ fontFamily: "'Inter', sans-serif" }}
       >
         {article.category}
@@ -54,16 +54,16 @@ export const ArticleCard = ({
       <h3
         className={`font-bold leading-snug group-hover:underline decoration-1 underline-offset-2 mb-1.5 ${
           size === "large"
-            ? "text-xl md:text-2xl line-clamp-3"
+            ? "text-xl md:text-2xl line-clamp-3 tracking-[-0.01em]"
             : size === "medium"
             ? "text-base md:text-lg line-clamp-3"
-            : "text-sm md:text-base line-clamp-2"
+            : "text-sm md:text-base line-clamp-2 tracking-[-0.005em]"
         }`}
       >
         {article.title}
       </h3>
       {showIngress && article.meta_description && (
-        <p className="text-sm text-muted-foreground line-clamp-2 mb-1.5 leading-relaxed">
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-2 leading-6">
           {article.meta_description}
         </p>
       )}
