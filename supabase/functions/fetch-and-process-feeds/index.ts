@@ -5,6 +5,7 @@ import { evaluateDuplicate, recordVerdict } from "../_shared/dupe.ts";
 import { normalizeUrl } from "../_shared/semantic.ts";
 import { ingestionMode } from "./mode.ts";
 import { normalizeImageUrl } from "./image-url.ts";
+import { evaluatePublishEligibility } from "./publish-eligibility.ts";
 
 
 const corsHeaders = {
@@ -38,8 +39,7 @@ const RATE_LIMIT = {
   maxFeedsPerRun: 7,
 };
 
-const AUTO_PUBLISH = { minScore: 0.75 };
-const PRE_AI_THRESHOLD = 0.40;
+const PRE_AI_THRESHOLD = 0.55;
 
 // Source authority tiers
 const TIER_1_SOURCES = ['Reuters', 'AP News', 'CNBC', 'CoinDesk', 'TechCrunch', 'Digi.no', 'Teknisk Ukeblad', 'The Block', 'Bloomberg'];
@@ -279,7 +279,7 @@ serve(async (req) => {
   }
   const supabase = auth.supabase;
   const body = await req.json().catch(() => ({}));
-  const { dryRun, fetchOnly } = ingestionMode(body ?? {});
+  const { dryRun, fetchOnly, autoPublish } = ingestionMode(body ?? {});
   const lovableKey = Deno.env.get('LOVABLE_API_KEY') ?? '';
 
   // Exclusive lock: never let two ingest runs overlap.
@@ -312,6 +312,14 @@ serve(async (req) => {
     let totalProcessed = 0;
     let totalNew = 0;
     let totalAutoPublished = 0;
+
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: publishedLast24hCount } = await supabase
+      .from('articles')
+      .select('id', { count: 'exact', head: true })
+      .eq('published', true)
+      .gte('created_at', since24h);
+    const publishedLast24h = publishedLast24hCount || 0;
     let totalSkippedLowScore = 0;
     let creditsDepleted = false;
     let consecutiveFailures = 0;
@@ -454,11 +462,11 @@ serve(async (req) => {
         scoreSource = 'backup';
       }
 
-      const shouldPublish = qualityScore >= AUTO_PUBLISH.minScore;
-
       // Layer 2 — semantic duplicate gate. Blocks re-reporting of the same event
       // across feeds, and yields the embedding we persist with the row.
       let embedding: number[] | null = null;
+      let semanticAvailable = true;
+      let semanticDecision = 'unique';
       try {
         const verdict = await evaluateDuplicate(supabase, lovableKey, {
           type: 'article',
@@ -472,6 +480,7 @@ serve(async (req) => {
           published_at: new Date().toISOString(),
         });
         embedding = verdict.embedding;
+        semanticDecision = verdict.decision;
         if (verdict.decision === 'duplicate') {
           totalSemanticDupes++;
           await recordVerdict(supabase, {
@@ -488,12 +497,31 @@ serve(async (req) => {
           }, verdict, 'flagged-near-duplicate');
         }
       } catch (e) {
-        // Dedup must never block ingestion — fail open, but record it.
+        // Ingestion may continue as a draft, but publishing fails closed when dedup is unavailable.
+        semanticAvailable = false;
+        semanticDecision = 'unavailable';
         console.error('semantic dedup failed:', e);
-        await logToSystem(supabase, 'warn', 'ai_processing', 'Semantic dedup unavailable, ingesting without it', {
+        await logToSystem(supabase, 'warn', 'ai_processing', 'Semantic dedup unavailable; forcing draft/review', {
           error: String(e).slice(0, 300),
         });
       }
+
+      const eligibility = evaluatePublishEligibility({
+        qualityScore,
+        scoreSource,
+        preScore,
+        title: aiResult.title || '',
+        metaDescription: aiResult.meta_description || null,
+        content: aiResult.content || '',
+        tagsLength: Array.isArray(aiResult.tags) ? aiResult.tags.length : 0,
+        sourceName: feedName,
+        semanticAvailable,
+        semanticDecision,
+        autoPublishEnabled: autoPublish,
+        publishedLast24h,
+        autoPublishedThisRun: totalAutoPublished,
+      });
+      const shouldPublish = eligibility.eligible;
 
       const { data: insertedArticle, error: insertError } = await supabase
         .from('articles')
@@ -513,6 +541,10 @@ serve(async (req) => {
             processed_at: new Date().toISOString(), source: feedName,
             auto_published: shouldPublish, quality_score: qualityScore,
             score_source: scoreSource, pre_ai_score: preScore, run_id: runId,
+            auto_publish_enabled: autoPublish,
+            publish_eligibility_reasons: eligibility.reasons,
+            semantic_available: semanticAvailable,
+            semantic_decision: semanticDecision,
           }
         })
         .select().single();
@@ -526,7 +558,8 @@ serve(async (req) => {
         console.log(logMsg);
         await logToSystem(supabase, 'info', 'ai_processing', logMsg, {
           slug: finalSlug, quality_score: qualityScore, score_source: scoreSource,
-          pre_ai_score: preScore, auto_published: shouldPublish
+          pre_ai_score: preScore, auto_published: shouldPublish,
+          publish_eligibility_reasons: eligibility.reasons
         }, insertedArticle.id);
         results.push({ title: aiResult.title, slug: finalSlug, quality_score: qualityScore, pre_ai_score: preScore, auto_published: shouldPublish });
 
@@ -560,7 +593,10 @@ serve(async (req) => {
       articles_created: totalNew, articles_auto_published: totalAutoPublished,
       duplicates_blocked: totalSemanticDupes,
       insert_failures: totalFailed,
-      credits_depleted: creditsDepleted, results,
+      credits_depleted: creditsDepleted,
+      auto_publish_enabled: autoPublish,
+      published_last_24h_at_start: publishedLast24h,
+      results,
     };
 
     console.log("Processing complete:", JSON.stringify(summary));
