@@ -134,8 +134,8 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
       <Navigation />
       <LatestNewsTicker articles={allArticles.slice(0, 10)} />
 
-      <main className="max-w-[1200px] mx-auto px-4 py-10 md:py-16">
-        <div className="max-w-3xl">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-14">
+        <div className="max-w-[720px] mx-auto">
           {/* Breadcrumbs */}
           <nav className="flex items-center gap-2 text-[12px] text-muted-foreground mb-8" style={{ fontFamily: "'Inter', sans-serif" }}>
             <Link to="/" className="hover:text-foreground transition-colors flex items-center gap-1">
@@ -163,7 +163,7 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
                 {article.title}
               </h1>
               {article.meta_description && (
-                <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl">
+                <p className="text-lg md:text-xl text-foreground/75 leading-relaxed">
                   {article.meta_description}
                 </p>
               )}
@@ -182,7 +182,7 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
             />
 
             {articleImage && (
-              <figure className="my-10">
+              <figure className="my-8 md:my-10">
                 <img src={articleImage} alt={article.title} className="w-full h-auto" loading="lazy" />
                 <figcaption className="text-[11px] text-muted-foreground mt-2" style={{ fontFamily: "'Inter', sans-serif" }}>
                   Illustrasjonsbilde | Marketrends

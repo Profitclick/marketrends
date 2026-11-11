@@ -31,7 +31,7 @@ export const HeroSection = ({ articles }: HeroSectionProps) => {
         {/* Main hero */}
         <div className="lg:col-span-8">
           <Link to={`/${mainArticle.slug}`} className="group block">
-            <div className="relative overflow-hidden aspect-[16/10] bg-muted">
+            <div className="relative overflow-hidden aspect-[16/10] lg:aspect-[16/9] bg-muted">
               <img
                 src={imageUrl}
                 alt={mainArticle.title}
