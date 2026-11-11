@@ -7,6 +7,7 @@ export interface PublishEligibilityInput {
   content: string;
   tagsLength: number;
   sourceName: string;
+  sourceEvidenceChars: number;
   semanticAvailable: boolean;
   semanticDecision: string;
   autoPublishEnabled: boolean;
@@ -23,6 +24,7 @@ export const AUTO_PUBLISH_LIMITS = {
   minQualityScore: 0.88,
   minPreScore: 0.55,
   minContentWords: 450,
+  minSourceEvidenceChars: 800,
   maxPublishedPer24h: 6,
   maxPublishedPerRun: 2,
 } as const;
@@ -42,6 +44,7 @@ export function evaluatePublishEligibility(input: PublishEligibilityInput): Publ
 
   if (!input.autoPublishEnabled) reasons.push('auto_publish_not_enabled');
   if (!sourceTrusted) reasons.push('source_not_trusted_for_auto_publish');
+  if (input.sourceEvidenceChars < AUTO_PUBLISH_LIMITS.minSourceEvidenceChars) reasons.push('insufficient_source_evidence');
   if (input.scoreSource !== 'ai') reasons.push('quality_score_not_from_ai');
   if (input.qualityScore < AUTO_PUBLISH_LIMITS.minQualityScore) reasons.push('quality_score_below_threshold');
   if (input.preScore < AUTO_PUBLISH_LIMITS.minPreScore) reasons.push('pre_ai_score_below_threshold');
