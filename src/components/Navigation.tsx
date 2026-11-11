@@ -45,7 +45,7 @@ const MORE_SERVICES = [
 ];
 
 const navItem =
-  "inline-flex items-center gap-1 h-10 px-3 rounded-sm text-[13px] font-semibold tracking-wide text-header-footer-foreground/80 hover:text-header-footer-foreground hover:bg-header-footer-foreground/10 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-header-footer-foreground/70";
+  "inline-flex items-center gap-1 h-10 px-2.5 xl:px-3 rounded-sm text-[13px] font-semibold tracking-wide text-header-footer-foreground/80 hover:text-header-footer-foreground hover:bg-header-footer-foreground/10 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-header-footer-foreground/70";
 
 /** Hover + click + keyboard dropdown built on Radix (Escape / click outside handled by Radix). */
 const HoverMenu = ({ label, children }: { label: string; children: React.ReactNode }) => {
@@ -143,7 +143,7 @@ export const Navigation = () => {
           </ul>
 
           <div className="hidden lg:flex items-center gap-3 ml-auto min-w-0">
-            <div className="w-44 xl:w-60 min-w-0">
+            <div className="w-36 xl:w-60 min-w-0">
               <SearchAutocomplete />
             </div>
             <Link
