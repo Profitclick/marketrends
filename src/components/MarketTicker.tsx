@@ -48,15 +48,15 @@ export const MarketTicker = () => {
     <div className="bg-header-footer border-b border-header-footer-foreground/10">
       <div className="max-w-[1200px] mx-auto px-4">
         <div className="flex items-center justify-between py-1.5 text-[11px]" style={{ fontFamily: "'Inter', sans-serif" }}>
-          <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
-            <span className="hidden sm:inline text-header-footer-foreground/50 whitespace-nowrap capitalize">
+          <div className="flex min-w-0 items-center gap-4 sm:gap-6 overflow-hidden">
+            <span className="hidden md:inline shrink-0 text-header-footer-foreground/50 whitespace-nowrap capitalize">
               {formatDate(currentTime)} · {formatTime(currentTime)}
             </span>
-            <span className="sm:hidden text-header-footer-foreground/50 whitespace-nowrap tabular-nums">
+            <span className="md:hidden shrink-0 text-header-footer-foreground/50 whitespace-nowrap tabular-nums">
               {formatTime(currentTime)}
             </span>
             {markets.map((market, idx) => (
-              <div key={idx} className="flex items-center gap-1.5 whitespace-nowrap">
+              <div\n                key={idx}\n                className={`items-center gap-1.5 whitespace-nowrap shrink-0 ${idx === 2 ? "hidden sm:flex" : idx >= 3 ? "hidden md:flex" : "flex"}`}\n              >
                 <span className="text-header-footer-foreground/50">{market.label}</span>
                 <span className="font-semibold text-header-footer-foreground">{market.value}</span>
                 {market.change !== undefined && (
