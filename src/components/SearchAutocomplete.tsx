@@ -132,7 +132,7 @@ export const SearchAutocomplete = () => {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.length >= 2 && results.length > 0 && setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          className="pl-9 pr-9 h-9 w-52 lg:w-56 rounded text-sm bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+          className="pl-9 pr-9 h-9 w-full rounded text-sm bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-all"
           style={{ fontFamily: "'Inter', sans-serif" }}
         />
         {query && (

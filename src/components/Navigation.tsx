@@ -1,102 +1,167 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Menu, Search, ChevronRight } from "lucide-react";
+import { Link, NavLink } from "react-router-dom";
+import { Menu, Search, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SearchAutocomplete } from "./SearchAutocomplete";
 
 const CATEGORIES = [
-  { name: "Krypto & Trading", slug: "krypto-trading" },
-  { name: "Teknologi & AI", slug: "teknologi-ai" },
-  { name: "Finans & Marked", slug: "finans-marked" },
-  { name: "Gründer & Startups", slug: "grunder-startups" },
-  { name: "Penger & Karriere", slug: "penger-karriere" },
-  { name: "Trender & Analyse", slug: "trender-analyse" },
-  { name: "Guider & Forklart", slug: "guider-forklart" },
+  { name: "Krypto & Trading", to: "/kategori/krypto-trading" },
+  { name: "Teknologi & AI", to: "/kategori/teknologi-ai" },
+  { name: "Finans & Marked", to: "/kategori/finans-marked" },
+  { name: "Gründer & Startups", to: "/kategori/grunder-startups" },
+  { name: "Penger & Karriere", to: "/kategori/penger-karriere" },
+  { name: "Trender & Analyse", to: "/kategori/trender-analyse" },
+  { name: "Guider & Forklart", to: "/kategori/guider-forklart" },
 ];
 
-const VERTICALS = [
+const PRIMARY = [
   { name: "AI", to: "/ai" },
   { name: "Krypto", to: "/krypto" },
   { name: "Fintech", to: "/fintech" },
-  { name: "Startup", to: "/startup" },
   { name: "Investering", to: "/investering" },
-  { name: "Daytrading", to: "/daytrading" },
 ];
 
-const SECONDARY = [
-  { name: "Trending", to: "/trending", accent: true },
+const MORE_TOPICS = [
+  { name: "Startup", to: "/startup" },
+  { name: "Daytrading", to: "/daytrading" },
+  { name: "Trending", to: "/trending" },
+];
+
+const MORE_SERVICES = [
   { name: "Academy", to: "/academy" },
   { name: "Verktøy", to: "/tools" },
   { name: "Ressurser", to: "/ressurser" },
-  { name: "Brev", to: "/newsletter" },
+  { name: "Nyhetsbrev", to: "/newsletter" },
   { name: "Om oss", to: "/om-oss" },
 ];
 
-const navItemCls =
-  "px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-header-footer-foreground/70 hover:text-header-footer-foreground transition-colors whitespace-nowrap";
+const navItem =
+  "inline-flex items-center gap-1 h-10 px-2.5 xl:px-3 rounded-sm text-[13px] font-semibold tracking-wide text-header-footer-foreground/80 hover:text-header-footer-foreground hover:bg-header-footer-foreground/10 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-header-footer-foreground/70";
+
+/** Hover + click + keyboard dropdown built on Radix (Escape / click outside handled by Radix). */
+const HoverMenu = ({ label, children }: { label: string; children: React.ReactNode }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+        <DropdownMenuTrigger className={`${navItem} data-[state=open]:text-header-footer-foreground data-[state=open]:bg-header-footer-foreground/10`}>
+          {label}
+          <ChevronDown className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={0} className="z-[60] min-w-[15rem] rounded-sm p-1.5">
+          {children}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
+const MenuLinks = ({ items }: { items: { name: string; to: string }[] }) => (
+  <>
+    {items.map((i) => (
+      <DropdownMenuItem key={i.to} asChild className="cursor-pointer text-sm py-2">
+        <Link to={i.to}>{i.name}</Link>
+      </DropdownMenuItem>
+    ))}
+  </>
+);
+
+const groupLabel = "text-[11px] uppercase tracking-widest text-muted-foreground font-semibold";
 
 export const Navigation = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
-  return (
-    <nav className="bg-header-footer sticky top-0 z-50 w-full">
-      <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
-        {/* Main row */}
-        <div className="flex items-center gap-4 h-16 md:h-20">
-          <Link to="/" className="flex items-baseline gap-0 shrink-0" aria-label="Marketrends.no forside">
-            <span
-              className="text-2xl md:text-3xl font-bold tracking-tight text-header-footer-foreground"
-              style={{ fontFamily: "'Source Serif 4', Georgia, serif", letterSpacing: "-0.03em" }}
+  const drawerGroup = (title: string, items: { name: string; to: string }[]) => (
+    <section className="py-3 border-b last:border-0">
+      <h2 className={`px-3 pb-1 ${groupLabel}`}>{title}</h2>
+      <ul>
+        {items.map((i) => (
+          <li key={i.to}>
+            <Link
+              to={i.to}
+              onClick={() => setDrawerOpen(false)}
+              className="flex items-center justify-between px-3 min-h-11 rounded-sm text-[15px] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
+              <span>{i.name}</span>
+              <ChevronRight className="h-4 w-4 opacity-40" aria-hidden="true" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+
+  return (
+    <nav aria-label="Hovednavigasjon" className="bg-header-footer sticky top-0 z-50 w-full border-b border-header-footer-foreground/10" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3 xl:gap-6 h-16">
+          <Link to="/" className="flex items-baseline shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-header-footer-foreground/70" aria-label="Marketrends.no forside">
+            <span className="text-2xl font-bold text-header-footer-foreground" style={{ fontFamily: "'Source Serif 4', Georgia, serif", letterSpacing: "-0.03em" }}>
               Marketrends
             </span>
-            <span
-              className="text-sm md:text-base font-normal text-header-footer-foreground/50 ml-0.5"
-              style={{ fontFamily: "'Inter', sans-serif" }}
-            >
-              .no
-            </span>
+            <span className="text-sm text-header-footer-foreground/50 ml-0.5">.no</span>
           </Link>
 
-          {/* Desktop search – pushed right */}
-          <div className="hidden lg:block ml-auto min-w-0 max-w-xs w-full">
-            <SearchAutocomplete />
+          {/* Desktop primary nav: max 6 items, never scrolls */}
+          <ul className="hidden lg:flex items-center gap-0.5 min-w-0">
+            <li>
+              <HoverMenu label="Nyheter">
+                <DropdownMenuItem asChild className="cursor-pointer text-sm py-2 font-semibold">
+                  <Link to="/">Alle nyheter</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className={groupLabel}>Kategorier</DropdownMenuLabel>
+                <MenuLinks items={CATEGORIES} />
+              </HoverMenu>
+            </li>
+            {PRIMARY.map((p) => (
+              <li key={p.to}>
+                <NavLink to={p.to} className={({ isActive }) => `${navItem} ${isActive ? "text-header-footer-foreground bg-header-footer-foreground/10" : ""}`}>
+                  {p.name}
+                </NavLink>
+              </li>
+            ))}
+            <li>
+              <HoverMenu label="Mer">
+                <DropdownMenuLabel className={groupLabel}>Fagområder</DropdownMenuLabel>
+                <MenuLinks items={MORE_TOPICS} />
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className={groupLabel}>Tjenester</DropdownMenuLabel>
+                <MenuLinks items={MORE_SERVICES} />
+              </HoverMenu>
+            </li>
+          </ul>
+
+          <div className="hidden lg:flex items-center gap-3 ml-auto min-w-0">
+            <div className="w-36 xl:w-60 min-w-0">
+              <SearchAutocomplete />
+            </div>
+            <Link
+              to="/newsletter"
+              className="hidden xl:inline-flex items-center h-9 px-4 rounded-sm bg-header-footer-foreground text-header-footer text-[13px] font-semibold whitespace-nowrap hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-header-footer focus-visible:ring-header-footer-foreground"
+            >
+              Nyhetsbrev
+            </Link>
           </div>
 
-          {/* Mobile / tablet controls */}
+          {/* Mobile / tablet */}
           <div className="flex items-center gap-1 ml-auto lg:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-11 w-11 hover:bg-header-footer-foreground/10 text-header-footer-foreground"
-              onClick={() => setMobileSearchOpen((v) => !v)}
-              aria-label="Åpne søk"
-              aria-expanded={mobileSearchOpen}
-            >
+            <Button variant="ghost" size="icon" className="h-11 w-11 hover:bg-header-footer-foreground/10 text-header-footer-foreground" onClick={() => setMobileSearchOpen((v) => !v)} aria-label="Åpne søk" aria-expanded={mobileSearchOpen} aria-controls="mobile-search">
               <Search className="h-5 w-5" />
             </Button>
             <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
               <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 hover:bg-header-footer-foreground/10 text-header-footer-foreground"
-                  aria-label="Åpne meny"
-                >
+                <Button variant="ghost" size="icon" className="h-11 w-11 hover:bg-header-footer-foreground/10 text-header-footer-foreground" aria-label="Åpne meny">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
@@ -104,147 +169,21 @@ export const Navigation = () => {
                 <SheetHeader className="px-5 py-4 border-b">
                   <SheetTitle className="text-left">Meny</SheetTitle>
                 </SheetHeader>
-
-                <div className="px-5 py-4 border-b">
-                  <SearchAutocomplete />
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-2 py-2">
-                  <Accordion type="multiple" defaultValue={["kategorier"]}>
-                    <AccordionItem value="kategorier">
-                      <AccordionTrigger className="px-3 text-sm font-semibold uppercase tracking-wider">
-                        Kategorier
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ul className="flex flex-col">
-                          {CATEGORIES.map((cat) => (
-                            <li key={cat.slug}>
-                              <Link
-                                to={`/kategori/${cat.slug}`}
-                                onClick={() => setDrawerOpen(false)}
-                                className="flex items-center justify-between px-3 min-h-11 py-2 rounded-md text-sm text-foreground hover:bg-muted"
-                              >
-                                <span>{cat.name}</span>
-                                <ChevronRight className="h-4 w-4 opacity-40" />
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="temaer">
-                      <AccordionTrigger className="px-3 text-sm font-semibold uppercase tracking-wider">
-                        Temaer
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ul className="flex flex-col">
-                          {VERTICALS.map((v) => (
-                            <li key={v.to}>
-                              <Link
-                                to={v.to}
-                                onClick={() => setDrawerOpen(false)}
-                                className="flex items-center justify-between px-3 min-h-11 py-2 rounded-md text-sm text-foreground hover:bg-muted"
-                              >
-                                <span>{v.name}</span>
-                                <ChevronRight className="h-4 w-4 opacity-40" />
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="mer">
-                      <AccordionTrigger className="px-3 text-sm font-semibold uppercase tracking-wider">
-                        Mer
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ul className="flex flex-col">
-                          {SECONDARY.map((s) => (
-                            <li key={s.to}>
-                              <Link
-                                to={s.to}
-                                onClick={() => setDrawerOpen(false)}
-                                className={`flex items-center justify-between px-3 min-h-11 py-2 rounded-md text-sm hover:bg-muted ${
-                                  s.accent ? "text-destructive font-semibold" : "text-foreground"
-                                }`}
-                              >
-                                <span>{s.name}</span>
-                                <ChevronRight className="h-4 w-4 opacity-40" />
-                              </Link>
-                            </li>
-                          ))}
-                          <li>
-                            <Link
-                              to="/dashboard"
-                              onClick={() => setDrawerOpen(false)}
-                              className="flex items-center justify-between px-3 min-h-11 py-2 rounded-md text-sm text-foreground hover:bg-muted"
-                            >
-                              <span>Dashboard</span>
-                              <ChevronRight className="h-4 w-4 opacity-40" />
-                            </Link>
-                          </li>
-                        </ul>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-2">
+                  {drawerGroup("Fagområder", [{ name: "Alle nyheter", to: "/" }, ...PRIMARY, ...MORE_TOPICS])}
+                  {drawerGroup("Kategorier", CATEGORIES)}
+                  {drawerGroup("Tjenester", MORE_SERVICES)}
                 </div>
               </SheetContent>
             </Sheet>
           </div>
         </div>
 
-        {/* Mobile swipeable verticals */}
-        <div className="lg:hidden flex items-center -mx-4 px-2 border-t border-header-footer-foreground/15 overflow-x-auto scrollbar-hide">
-          {VERTICALS.map((v) => (
-            <Link key={v.to} to={v.to} className={navItemCls} style={{ fontFamily: "'Inter', sans-serif" }}>
-              {v.name}
-            </Link>
-          ))}
-          <Link to="/trending" className={navItemCls} style={{ fontFamily: "'Inter', sans-serif" }}>
-            Trending
-          </Link>
-        </div>
-
-        {/* Mobile search */}
         {mobileSearchOpen && (
-          <div className="lg:hidden pb-4">
+          <div id="mobile-search" className="lg:hidden pb-4">
             <SearchAutocomplete />
           </div>
         )}
-
-        {/* Desktop category bar – with graceful overflow */}
-        <div className="hidden lg:flex items-center gap-0 border-t border-header-footer-foreground/15 -mx-1 overflow-x-auto scrollbar-hide">
-          {CATEGORIES.map((cat) => (
-            <Link
-              key={cat.slug}
-              to={`/kategori/${cat.slug}`}
-              className={navItemCls}
-              style={{ fontFamily: "'Inter', sans-serif", letterSpacing: "0.08em" }}
-            >
-              {cat.name}
-            </Link>
-          ))}
-          <div className="ml-auto flex items-center">
-            {SECONDARY.map((s) => (
-              <Link
-                key={s.to}
-                to={s.to}
-                className={`${navItemCls} ${s.accent ? "text-destructive hover:text-destructive" : ""} flex items-center gap-1.5`}
-                style={{ fontFamily: "'Inter', sans-serif", letterSpacing: "0.08em" }}
-              >
-                {s.accent && (
-                  <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-60" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-destructive" />
-                  </span>
-                )}
-                {s.name}
-              </Link>
-            ))}
-          </div>
-        </div>
       </div>
     </nav>
   );
