@@ -56,7 +56,10 @@ export const MarketTicker = () => {
               {formatTime(currentTime)}
             </span>
             {markets.map((market, idx) => (
-              <div\n                key={idx}\n                className={`items-center gap-1.5 whitespace-nowrap shrink-0 ${idx === 2 ? "hidden sm:flex" : idx >= 3 ? "hidden md:flex" : "flex"}`}\n              >
+              <div
+                key={idx}
+                className={`items-center gap-1.5 whitespace-nowrap shrink-0 ${idx === 2 ? "hidden sm:flex" : idx >= 3 ? "hidden md:flex" : "flex"}`}
+              >
                 <span className="text-header-footer-foreground/50">{market.label}</span>
                 <span className="font-semibold text-header-footer-foreground">{market.value}</span>
                 {market.change !== undefined && (
