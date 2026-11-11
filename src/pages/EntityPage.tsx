@@ -161,9 +161,9 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
 
       <Navigation />
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         {/* Header */}
-        <header className="border-b-2 border-foreground pb-6 mb-8">
+        <header className="border-b border-border pb-8 mb-10">
           <div
             className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-3"
             style={{ fontFamily: "'Inter', sans-serif" }}
@@ -175,13 +175,13 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
             <span>{typeLabel[entity.type] || entity.type}</span>
           </div>
           <h1
-            className="text-4xl md:text-5xl font-bold leading-tight mb-3"
+            className="text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.03] tracking-[-0.02em] mb-4"
             style={{ fontFamily: "'Source Serif 4', serif" }}
           >
             {entity.name}
           </h1>
           {entity.summary && (
-            <p className="text-lg text-muted-foreground max-w-3xl leading-relaxed">
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl leading-8">
               {entity.summary}
             </p>
           )}
@@ -202,11 +202,11 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12">
           {/* Main */}
-          <div className="lg:col-span-2 space-y-10">
+          <div className="lg:col-span-8 space-y-12">
             {(entity.what_happened || entity.why_it_matters) && (
-              <section className="grid sm:grid-cols-2 gap-6 border border-border p-5 bg-muted/20">
+              <section className="grid sm:grid-cols-2 gap-6 rounded-sm border border-border p-5 md:p-6 bg-card shadow-sm">
                 {entity.what_happened && (
                   <div>
                     <h2 className="text-[11px] font-bold uppercase tracking-widest mb-2"
@@ -271,7 +271,7 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
           </div>
 
           {/* Sidebar */}
-          <aside className="space-y-8">
+          <aside className="lg:col-span-4 space-y-8 lg:sticky lg:top-24 lg:self-start">
             <RelatedEntities entityId={entity.id} />
             {entity.aliases?.length > 0 && (
               <div>
