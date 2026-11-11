@@ -200,8 +200,8 @@ const TopicPage = () => {
       <Navigation />
       <LatestNewsTicker articles={articles.slice(0, 10) as any} />
 
-      <main className="max-w-[1200px] mx-auto px-4 py-10">
-        <nav className="flex items-center gap-2 text-[12px] text-muted-foreground mb-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <nav className="flex items-center gap-2 text-[12px] text-muted-foreground mb-7" style={{ fontFamily: "'Inter', sans-serif" }}>
           <Link to="/" className="hover:text-foreground flex items-center gap-1"><Home className="h-3.5 w-3.5" />Hjem</Link>
           <ChevronRight className="h-3 w-3" />
           <span className="uppercase tracking-wider">Tema</span>
@@ -210,7 +210,7 @@ const TopicPage = () => {
         </nav>
 
         {/* Topic Hero */}
-        <header className="mb-10 pb-8 border-b-2 border-foreground">
+        <header className="mb-12 pb-9 border-b border-border">
           <div className="flex items-center gap-3 mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
             <span className="text-[11px] font-bold uppercase tracking-widest text-destructive">
               Tema · {topic.article_count} artikler
@@ -226,11 +226,11 @@ const TopicPage = () => {
               </span>
             )}
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold mt-1 mb-4 leading-[1.05]">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold mt-1 mb-5 leading-[1.02] tracking-[-0.02em]">
             {topic.name}
           </h1>
           {topic.description && (
-            <p className="text-lg text-muted-foreground max-w-3xl leading-relaxed">{topic.description}</p>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl leading-8">{topic.description}</p>
           )}
           {entities.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-5">
@@ -246,9 +246,9 @@ const TopicPage = () => {
 
         {/* Featured */}
         {hero && (
-          <Link to={`/${hero.slug}`} className="block group mb-12">
-            <div className="grid md:grid-cols-12 gap-6">
-              <div className="md:col-span-7 aspect-[16/9] overflow-hidden">
+          <Link to={`/${hero.slug}`} className="block group mb-14 rounded-sm border border-border bg-card p-4 md:p-5 shadow-sm">
+            <div className="grid md:grid-cols-12 gap-6 md:gap-8">
+              <div className="md:col-span-7 aspect-[16/9] overflow-hidden rounded-sm bg-muted">
                 <img
                   src={hero.image_url || getCategoryFallbackImage(hero.category, 0)}
                   alt={hero.title}
@@ -274,8 +274,8 @@ const TopicPage = () => {
           </Link>
         )}
 
-        <div className="grid lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-8 space-y-12">
+        <div className="grid lg:grid-cols-12 gap-10 lg:gap-12">
+          <div className="lg:col-span-8 space-y-14">
             {latest.length > 0 && (
               <section>
                 <h3 className="text-xs font-bold uppercase tracking-widest mb-5 pb-3 border-b-2 border-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -348,7 +348,7 @@ const TopicPage = () => {
             )}
           </div>
 
-          <aside className="lg:col-span-4 space-y-8">
+          <aside className="lg:col-span-4 space-y-8 lg:sticky lg:top-24 lg:self-start">
             {trending.length > 0 && (
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-widest mb-4 pb-3 border-b-2 border-foreground flex items-center gap-2" style={{ fontFamily: "'Inter', sans-serif" }}>
