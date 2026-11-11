@@ -172,7 +172,10 @@ REGLER:
 - Tittel: <70 tegn, presis og nyhetsverdig (ikke clickbait)
 - Meta: 140-160 tegn, faktabasert
 - Korte avsnitt (2-4 setninger)
-- Alltid norsk kontekst eller referanse
+- Mål 500–700 ord når kildegrunnlaget faktisk støtter det
+- Aldri finn på fakta, sitater, tall, årsakssammenhenger eller norsk relevans som ikke kan støttes av kilden
+- Hvis kildegrunnlaget er tynt: skriv kortere og nøkternt; kvalitetssystemet skal heller stoppe publisering enn at du fyller ut med antakelser
+- Alltid norsk kontekst eller referanse, men skill tydelig mellom kildefakta og redaksjonell konsekvensanalyse
 
 STRUKTUR:
 1. **Ingress** – 2 setninger som oppsummerer saken objektivt
@@ -190,7 +193,7 @@ RETURNER JSON:
 
 TITTEL: ${item.title}
 KILDE: ${sourceName}
-INNHOLD: ${cleanContent.substring(0, 3000)}
+INNHOLD: ${cleanContent.substring(0, 6000)}
 
 Gi ai_quality_score (0.0-1.0) basert på faglig verdi, norsk relevans og redaksjonell kvalitet.`;
 
@@ -515,6 +518,7 @@ serve(async (req) => {
         content: aiResult.content || '',
         tagsLength: Array.isArray(aiResult.tags) ? aiResult.tags.length : 0,
         sourceName: feedName,
+        sourceEvidenceChars: cleanContent.length,
         semanticAvailable,
         semanticDecision,
         autoPublishEnabled: autoPublish,
