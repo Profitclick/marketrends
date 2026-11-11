@@ -206,7 +206,7 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
           {/* Main */}
           <div className="lg:col-span-8 space-y-12">
             {(entity.what_happened || entity.why_it_matters) && (
-              <section className="grid sm:grid-cols-2 gap-6 rounded-sm border border-border p-5 md:p-6 bg-card shadow-sm">
+              <section className="grid sm:grid-cols-2 gap-6 rounded-[4px] border border-border bg-card p-5 md:p-6 shadow-sm ring-1 ring-border/20">
                 {entity.what_happened && (
                   <div>
                     <h2 className="text-[11px] font-bold uppercase tracking-widest mb-2"
