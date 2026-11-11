@@ -26,12 +26,12 @@ export const HeroSection = ({ articles }: HeroSectionProps) => {
   const imageUrl = mainArticle.image_url || getCategoryFallbackImage(mainArticle.category, 0);
 
   return (
-    <section className="mb-12 md:mb-14" aria-label="Toppsaker">
-      <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
+    <section className="mb-14 md:mb-16" aria-label="Toppsaker">
+      <div className="grid lg:grid-cols-12 gap-7 lg:gap-10">
         {/* Main hero */}
         <div className="lg:col-span-8">
           <Link to={`/${mainArticle.slug}`} className="group block">
-            <div className="relative overflow-hidden aspect-[16/10] lg:aspect-[16/9] bg-muted">
+            <div className="relative overflow-hidden rounded-sm aspect-[16/10] lg:aspect-[16/9] bg-muted ring-1 ring-border/60 shadow-sm">
               <img
                 src={imageUrl}
                 alt={mainArticle.title}
@@ -62,14 +62,14 @@ export const HeroSection = ({ articles }: HeroSectionProps) => {
         </div>
 
         {/* Secondary */}
-        <div className="lg:col-span-4 flex flex-col divide-y divide-border">
+        <div className="lg:col-span-4 flex flex-col divide-y divide-border lg:border-l lg:border-border lg:pl-6">
           {secondaryArticles.map((article, idx) => (
             <Link
               key={article.id}
               to={`/${article.slug}`}
-              className="group flex gap-4 py-4 first:pt-0 last:pb-0"
+              className="group flex gap-4 py-5 first:pt-0 last:pb-0"
             >
-              <div className="flex-shrink-0 w-24 sm:w-28 aspect-[4/3] overflow-hidden bg-muted">
+              <div className="flex-shrink-0 w-24 sm:w-28 aspect-[4/3] overflow-hidden rounded-sm bg-muted ring-1 ring-border/50">
                 <img
                   src={article.image_url || getCategoryFallbackImage(article.category, idx + 1)}
                   alt={article.title}
