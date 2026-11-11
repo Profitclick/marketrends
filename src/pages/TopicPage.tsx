@@ -246,9 +246,9 @@ const TopicPage = () => {
 
         {/* Featured */}
         {hero && (
-          <Link to={`/${hero.slug}`} className="block group mb-14 rounded-sm border border-border bg-card p-4 md:p-5 shadow-sm">
+          <Link to={`/${hero.slug}`} className="block group mb-14 rounded-[4px] border border-border bg-card p-4 md:p-5 shadow-sm">
             <div className="grid md:grid-cols-12 gap-6 md:gap-8">
-              <div className="md:col-span-7 aspect-[16/9] overflow-hidden rounded-sm bg-muted">
+              <div className="md:col-span-7 aspect-[16/9] overflow-hidden rounded-[4px] bg-muted">
                 <img
                   src={hero.image_url || getCategoryFallbackImage(hero.category, 0)}
                   alt={hero.title}
