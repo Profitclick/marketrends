@@ -274,8 +274,8 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
           <aside className="lg:col-span-4 space-y-8 lg:sticky lg:top-24 lg:self-start">
             <RelatedEntities entityId={entity.id} />
             {entity.aliases?.length > 0 && (
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest mb-3 pb-2 border-b-2 border-foreground"
+              <div className="rounded-[4px] border border-border bg-card p-5 shadow-sm ring-1 ring-border/20">
+                <h3 className="text-xs font-bold uppercase tracking-widest mb-3 pb-2 border-b border-border"
                   style={{ fontFamily: "'Inter', sans-serif" }}>
                   Også kjent som
                 </h3>
