@@ -12,8 +12,8 @@ import { ContextualLinks } from "@/components/ContextualLinks";
 import { getCluster, CLUSTERS } from "@/config/clusters";
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="border-t border-border pt-8 mt-10">
-    <h2 className="font-serif text-2xl md:text-3xl mb-5">{title}</h2>
+  <section className="border-t border-border pt-8 mt-12">
+    <h2 className="font-serif text-2xl md:text-3xl tracking-[-0.01em] mb-6">{title}</h2>
     {children}
   </section>
 );
@@ -100,23 +100,23 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
         })}</script>
       </Helmet>
       <Navigation />
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <header className="border-b border-border pb-6">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <header className="border-b border-border pb-9 mb-2">
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Cluster</span>
             {stats && <AuthorityBadge score={stats.authority_score || 0} />}
           </div>
-          <h1 className="font-serif text-4xl md:text-5xl leading-tight mb-3">{cluster.name}</h1>
-          <p className="text-lg text-muted-foreground max-w-3xl">{cluster.intro}</p>
+          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl leading-[1.03] tracking-[-0.02em] mb-4">{cluster.name}</h1>
+          <p className="text-lg md:text-xl leading-8 text-muted-foreground max-w-3xl">{cluster.intro}</p>
         </header>
 
         <Section title="Siste nyheter">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-7">
             {articles.map((a) => <ArticleCard key={a.id} article={a} />)}
           </div>
         </Section>
 
-        <div className="grid md:grid-cols-2 gap-10 mt-10">
+        <div className="grid md:grid-cols-2 gap-10 lg:gap-12 mt-12">
           <Section title="Trendende tema">
             <ul className="space-y-2">
               {topics.map((t) => (
@@ -139,7 +139,7 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
           </Section>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 mt-10">
+        <div className="grid md:grid-cols-3 gap-8 lg:gap-10 mt-12">
           {[
             { title: "Guider", items: guides, base: "/guide/" },
             { title: "Knowledge", items: knowledge, base: "/knowledge/" },
