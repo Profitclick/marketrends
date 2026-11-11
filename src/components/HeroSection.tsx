@@ -31,7 +31,7 @@ export const HeroSection = ({ articles }: HeroSectionProps) => {
         {/* Main hero */}
         <div className="lg:col-span-8">
           <Link to={`/${mainArticle.slug}`} className="group block">
-            <div className="relative overflow-hidden rounded-sm aspect-[16/10] lg:aspect-[16/9] bg-muted ring-1 ring-border/60 shadow-sm">
+            <div className="relative overflow-hidden rounded-[4px] aspect-[16/10] lg:aspect-[16/9] bg-muted ring-1 ring-border/60 shadow-sm">
               <img
                 src={imageUrl}
                 alt={mainArticle.title}
@@ -69,7 +69,7 @@ export const HeroSection = ({ articles }: HeroSectionProps) => {
               to={`/${article.slug}`}
               className="group flex gap-4 py-5 first:pt-0 last:pb-0"
             >
-              <div className="flex-shrink-0 w-24 sm:w-28 aspect-[4/3] overflow-hidden rounded-sm bg-muted ring-1 ring-border/50">
+              <div className="flex-shrink-0 w-24 sm:w-28 aspect-[4/3] overflow-hidden rounded-[4px] bg-muted ring-1 ring-border/50">
                 <img
                   src={article.image_url || getCategoryFallbackImage(article.category, idx + 1)}
                   alt={article.title}
