@@ -34,7 +34,7 @@ export const ArticleCard = ({
   return (
     <Link to={`/${article.slug}`} className="group block h-full">
       {showImage && (
-        <div className="overflow-hidden rounded-sm mb-4 bg-muted ring-1 ring-border/50">
+        <div className="overflow-hidden rounded-[4px] mb-4 bg-muted ring-1 ring-border/50">
           <img
             src={imageUrl}
             alt={article.title}
