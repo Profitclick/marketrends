@@ -10,6 +10,7 @@ const base = {
   content: '## Ingress\n\n' + 'fakta '.repeat(470) + '\n\n### Norsk kontekst\nRelevant for norske aktører.\n\n### Konsekvenser\nDette kan endre markedet.',
   tagsLength: 5,
   sourceName: 'CNBC Top News',
+  sourceEvidenceChars: 1600,
   semanticAvailable: true,
   semanticDecision: 'unique',
   autoPublishEnabled: true,
@@ -19,6 +20,12 @@ const base = {
 
 Deno.test("eligible article passes all hard gates", () => {
   assertEquals(evaluatePublishEligibility(base).eligible, true);
+});
+
+Deno.test("insufficient source evidence blocks publishing", () => {
+  const r = evaluatePublishEligibility({ ...base, sourceEvidenceChars: 300 });
+  assertEquals(r.eligible, false);
+  assertEquals(r.reasons.includes('insufficient_source_evidence'), true);
 });
 
 Deno.test("semantic failure fails closed for publishing", () => {
