@@ -1,5 +1,12 @@
 # Database recovery
 
+## Launch-blocker remediation
+- [x] Verify current main: `bd741f6bcae78594ce3d2bcbbe93b716c48a1abb`; raw production responses reproduce all three deviations.
+- [ ] Serve initial `noindex,nofollow` HTML shells for `/admin`, `/auth` and `/dashboard`, without protected content or homepage canonical; verify in production after publish.
+- [ ] Real HTTP 404 for unknown routes: blocked by Lovable's fixed SPA fallback while DNS and Cloudflare Worker changes are forbidden.
+- [ ] Server-side 301/308 for `/cluster/:slug`: blocked by the same hosting constraint; client-side redirect remains only a fallback, not completion.
+- [ ] Run relevant tests and report actual CI/typecheck/build evidence; do not close until all three production deviations pass.
+
 ## Phase 7D.2
 - [x] Set only hourly job 6 to fetch_only, preserving 0 * * * *; scheduled-equivalent request 12950 succeeded, 7 feeds / 35 items, zero AI calls, creations or publications; all 7 last_fetched values advanced.
 - [x] Migration 0012 restricts only start_pipeline_run/complete_pipeline_run to service_role and owner. Anonymous HTTP calls denied (42501); authenticated EXECUTE=false; existing service-role run tracking succeeded. Non-admin session test unavailable without an identified test account.
