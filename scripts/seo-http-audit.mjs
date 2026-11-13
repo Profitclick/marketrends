@@ -113,4 +113,4 @@ const summary = `${lines.join('\n')}\n`;
 fs.writeFileSync('seo-audit/http-audit.md', summary);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
 console.log(summary);
-if (railures.length) process.exitCode = 1;
+if (failures.length) process.exitCode = 1;
