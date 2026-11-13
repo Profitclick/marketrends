@@ -18,6 +18,10 @@ const sitemapPlugin = (env: Record<string, string>) => ({
     } catch (e) {
       console.warn("[sitemaps] generation failed:", (e as Error).message);
     }
+    // Private entry documents contain only the application shell and noindex,nofollow metadata.
+    // They are generated before public prerendering so no homepage markup can leak into them.
+    const privateFiles = generatePrivateRoutes(path.resolve(__dirname, "dist"));
+    console.log(`[private-routes] ${privateFiles.length} noindex shells`);
     // Route-specific static HTML for every ordinary-sitemap route. Fails the build on any failure or parity gap
     // so a wrong homepage fallback canonical is never shipped for an expected SEO route.
     const p = await prerender(path.resolve(__dirname, "dist"), env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
