@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 import { generateSitemaps } from "./scripts/generate-sitemaps.mjs";
 import { prerender } from "./scripts/prerender.mjs";
 import { generate404 } from "./scripts/generate-404.mjs";
+import { generatePrivateRoutes } from "./scripts/private-routes.mjs";
 
 // Public sitemaps are generated into the build output so they are served from https://marketrends.no.
 const sitemapPlugin = (env: Record<string, string>) => ({
