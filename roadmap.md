@@ -1,5 +1,10 @@
 # Database recovery
 
+## Category presentation
+- [ ] Improve category-page image relevance and deterministic duplicate-image handling, with focused tests.
+- [ ] Polish category-page layout and visual hierarchy within the existing editorial design system.
+- [ ] Verify tests and browser rendering; leave SEO, database, RSS and publishing pipelines unchanged.
+
 ## Launch-blocker remediation
 - [x] Verify current main: `bd741f6bcae78594ce3d2bcbbe93b716c48a1abb`; raw production responses reproduce all three deviations.
 - [ ] Serve initial `noindex,nofollow` HTML shells for `/admin`, `/auth` and `/dashboard`, without protected content or homepage canonical; verify in production after publish.
