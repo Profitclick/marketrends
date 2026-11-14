@@ -1,4 +1,4 @@
-import { useEffect, useState, type ImgHTMLAttributes } from "react";
+import { useEffect, useRef, useState, type ImgHTMLAttributes } from "react";
 
 interface ArticleImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "onError"> {
   src: string;
