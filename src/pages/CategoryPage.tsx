@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
@@ -7,9 +7,11 @@ import { MarketTicker } from "@/components/MarketTicker";
 import { LatestNewsTicker } from "@/components/LatestNewsTicker";
 import { SEOHead } from "@/components/SEOHead";
 import { ArticleCard } from "@/components/ArticleCard";
+import { ArticleImage } from "@/components/ArticleImage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronRight } from "lucide-react";
 import { getCategoryFallbackImage } from "@/utils/seo";
+import { resolveArticleImages } from "@/utils/articleImages";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 
@@ -73,6 +75,7 @@ export default function CategoryPage() {
 
   const categoryInfo = slug ? CATEGORY_MAP[slug] : null;
   const categoryName = categoryInfo?.name || "Nyheter";
+  const articleImages = useMemo(() => resolveArticleImages(articles), [articles]);
 
   useEffect(() => {
     const fetchArticles = async () => {
@@ -114,6 +117,7 @@ export default function CategoryPage() {
   const heroArticle = articles[0];
   const sideArticles = articles.slice(1, 5);
   const restArticles = articles.slice(5);
+  const heroImage = heroArticle ? articleImages.get(heroArticle.id) : undefined;
 
   if (!categoryInfo) {
     return (
@@ -150,38 +154,39 @@ export default function CategoryPage() {
       <Navigation />
       <LatestNewsTicker articles={articles.slice(0, 10)} />
 
-      <main className="max-w-[1200px] mx-auto px-4 py-6">
-        {/* Breadcrumbs */}
-        <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10">
+        <nav aria-label="Brødsmuler" className="flex items-center gap-2 text-sm text-muted-foreground mb-8">
           <Link to="/" className="hover:text-foreground transition-colors">Hjem</Link>
-          <ChevronRight className="h-4 w-4" />
-          <span className="text-foreground font-medium">{categoryName}</span>
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          <span className="text-foreground font-medium" aria-current="page">{categoryName}</span>
         </nav>
 
-        {/* Category Header */}
-        <header className="mb-10 pb-6 border-b border-border">
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-3">{categoryName}</h1>
-          <p className="text-muted-foreground text-lg max-w-2xl">{categoryInfo.description}</p>
+        <header className="mb-10 md:mb-12 pb-8 border-b-2 border-foreground">
+          <p className="category-badge mb-3">Nyheter og analyse</p>
+          <div className="grid lg:grid-cols-12 gap-4 lg:gap-8 lg:items-end">
+            <h1 className="lg:col-span-7 text-4xl md:text-5xl text-foreground">{categoryName}</h1>
+            <p className="lg:col-span-5 text-muted-foreground text-lg leading-8 max-w-2xl">{categoryInfo.description}</p>
+          </div>
           {isFallback && (
-            <p className="text-sm text-muted-foreground mt-2 italic">
+            <p className="text-sm text-muted-foreground mt-4 italic">
               Viser siste nyheter på tvers av alle kategorier.
             </p>
           )}
         </header>
 
         {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <Skeleton className="h-[400px] w-full" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8" aria-label="Laster artikler">
+            <div className="lg:col-span-8">
+              <Skeleton className="aspect-[16/9] w-full" />
             </div>
-            <div className="space-y-4">
+            <div className="lg:col-span-4 space-y-4">
               {[1, 2, 3, 4].map(i => (
                 <Skeleton key={i} className="h-24 w-full" />
               ))}
             </div>
           </div>
         ) : articles.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-16 border-y border-border">
             <p className="text-muted-foreground text-lg">Ingen artikler funnet ennå.</p>
             <Link to="/" className="text-primary hover:underline mt-4 inline-block">
               Utforsk andre nyheter
@@ -189,26 +194,30 @@ export default function CategoryPage() {
           </div>
         ) : (
           <>
-            {/* Hero + Side articles */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+            <section aria-label="Siste saker" className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 mb-14 md:mb-16">
               {heroArticle && (
-                <Link to={`/${heroArticle.slug}`} className="lg:col-span-2 group block">
-                  <div className="relative aspect-[16/10] overflow-hidden mb-3">
-                    <img
-                      src={heroArticle.image_url || getCategoryFallbackImage(heroArticle.category, 0)}
+                <Link to={`/${heroArticle.slug}`} className="lg:col-span-8 group block">
+                  <div className="relative aspect-[16/10] md:aspect-[16/9] overflow-hidden bg-muted">
+                    <ArticleImage
+                      src={heroImage?.src || heroArticle.image_url || getCategoryFallbackImage(heroArticle.category, 0)}
+                      fallbackSrc={heroImage?.fallbackSrc || getCategoryFallbackImage(heroArticle.category, 1)}
                       alt={heroArticle.title}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.015]"
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="async"
+                      sizes="(min-width: 1200px) 760px, (min-width: 1024px) 66vw, 100vw"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-6">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-white/80">{heroArticle.category}</span>
-                      <h2 className="text-2xl md:text-3xl font-bold text-white mt-1 mb-2 leading-tight line-clamp-3 group-hover:underline decoration-1 underline-offset-2">
+                    <div className="absolute inset-0 bg-gradient-to-t from-foreground/90 via-foreground/30 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6 md:p-8">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-foreground/80">{heroArticle.category}</span>
+                      <h2 className="text-2xl md:text-4xl font-bold text-primary-foreground mt-2 mb-3 leading-tight line-clamp-3 group-hover:underline decoration-1 underline-offset-4">
                         {heroArticle.title}
                       </h2>
                       {heroArticle.meta_description && (
-                        <p className="text-white/80 text-sm line-clamp-2">{heroArticle.meta_description}</p>
+                        <p className="text-primary-foreground/85 text-sm md:text-base leading-6 line-clamp-2 max-w-2xl">{heroArticle.meta_description}</p>
                       )}
-                      <time className="text-[11px] text-white/60 mt-2 block">
+                      <time dateTime={heroArticle.created_at} className="text-[11px] text-primary-foreground/70 mt-3 block">
                         {format(new Date(heroArticle.created_at), "d. MMM yyyy", { locale: nb })}
                       </time>
                     </div>
@@ -216,40 +225,59 @@ export default function CategoryPage() {
                 </Link>
               )}
 
-              <div className="space-y-5">
-                {sideArticles.map((article, i) => (
-                  <Link key={article.id} to={`/${article.slug}`} className="group flex gap-4 pb-5 border-b border-border last:border-b-0">
-                    <div className="flex-shrink-0 w-24 h-20 overflow-hidden">
-                      <img
-                        src={article.image_url || getCategoryFallbackImage(article.category, i + 1)}
-                        alt={article.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{article.category}</span>
-                      <h3 className="text-sm font-bold leading-snug line-clamp-2 group-hover:underline decoration-1 underline-offset-2 mt-0.5">
-                        {article.title}
-                      </h3>
-                      <time className="text-[10px] text-muted-foreground mt-1 block">
-                        {format(new Date(article.created_at), "d. MMM", { locale: nb })}
-                      </time>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            {/* Rest of articles grid */}
-            {restArticles.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold text-foreground mb-6 pb-2 border-b border-border">
-                  Flere fra {categoryName}
+              <aside className="lg:col-span-4 border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6" aria-labelledby="latest-category-stories">
+                <h2 id="latest-category-stories" className="font-sans text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-4">
+                  Flere siste saker
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="flex flex-col">
+                  {sideArticles.map((article, i) => {
+                    const image = articleImages.get(article.id);
+                    return (
+                      <Link key={article.id} to={`/${article.slug}`} className="group flex gap-4 py-4 first:pt-0 border-b border-border last:border-b-0">
+                        <div className="flex-shrink-0 w-28 sm:w-32 lg:w-24 xl:w-28 aspect-[4/3] overflow-hidden bg-muted">
+                          <ArticleImage
+                            src={image?.src || article.image_url || getCategoryFallbackImage(article.category, i + 1)}
+                            fallbackSrc={image?.fallbackSrc || getCategoryFallbackImage(article.category, i + 2)}
+                            alt={article.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                            loading="lazy"
+                            decoding="async"
+                            sizes="128px"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{article.category}</span>
+                          <h3 className="text-base font-bold leading-snug line-clamp-3 group-hover:underline decoration-1 underline-offset-4 mt-1">
+                            {article.title}
+                          </h3>
+                          <time dateTime={article.created_at} className="text-[11px] text-muted-foreground mt-2 block">
+                            {format(new Date(article.created_at), "d. MMM", { locale: nb })}
+                          </time>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </aside>
+            </section>
+
+            {restArticles.length > 0 && (
+              <section aria-labelledby="more-category-stories">
+                <div className="flex items-end justify-between gap-4 border-t-2 border-foreground pt-4 mb-8">
+                  <h2 id="more-category-stories" className="text-2xl md:text-3xl font-bold text-foreground">
+                    Flere fra {categoryName}
+                  </h2>
+                  <span className="hidden sm:block text-xs font-sans uppercase tracking-wider text-muted-foreground pb-1">Utforsk arkivet</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10">
                   {restArticles.map((article, i) => (
-                    <ArticleCard key={article.id} article={article} index={i + 5} />
+                    <ArticleCard
+                      key={article.id}
+                      article={article}
+                      index={i + 5}
+                      imageUrl={articleImages.get(article.id)?.src}
+                      fallbackImageUrl={articleImages.get(article.id)?.fallbackSrc}
+                    />
                   ))}
                 </div>
               </section>
