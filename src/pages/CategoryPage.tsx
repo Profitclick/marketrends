@@ -247,10 +247,10 @@ export default function CategoryPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{article.category}</span>
-                          <h3 className="text-base font-bold leading-snug line-clamp-3 group-hover:underline decoration-1 underline-offset-4 mt-1">
+                          <h3 className="text-sm font-bold leading-snug line-clamp-2 group-hover:underline decoration-1 underline-offset-4 mt-1">
                             {article.title}
                           </h3>
-                          <time dateTime={article.created_at} className="text-[11px] text-muted-foreground mt-2 block">
+                          <time dateTime={article.created_at} className="text-[11px] text-muted-foreground mt-1.5 block">
                             {format(new Date(article.created_at), "d. MMM", { locale: nb })}
                           </time>
                         </div>

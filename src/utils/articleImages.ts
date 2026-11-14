@@ -203,6 +203,7 @@ export function resolveArticleImages(
     }
 
     used.add(imageKey(src));
+    reservedFallbacks.add(imageKey(fallbackSrc));
     resolved.set(article.id, {
       src,
       fallbackSrc,
