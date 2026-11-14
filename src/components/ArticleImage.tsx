@@ -20,5 +20,7 @@ export const ArticleImage = ({ src, fallbackSrc, alt, fetchPriority, ...props }:
     }
   };
 
-  return <img {...props} src={activeSrc} alt={alt} onError={handleError} />;
+  // React 18 forwards the standards-based attribute only in lowercase.
+  const priorityProps = fetchPriority ? { fetchpriority: fetchPriority } : {};
+  return <img {...props} {...priorityProps} src={activeSrc} alt={alt} onError={handleError} />;
 };

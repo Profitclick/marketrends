@@ -155,6 +155,7 @@ function fallbackPool(category: string): string[] {
     add(candidate);
   }
   (SUPPLEMENTAL_IMAGES[category] || []).forEach(add);
+  SHARED_EDITORIAL_IMAGES.forEach(add);
   return pool;
 }
 
@@ -193,9 +194,12 @@ export function resolveArticleImages(
     const original = article.image_url?.trim() || "";
     const originalKey = imageKey(original);
     const pool = fallbackPool(relevantCategory(article));
-    const fallbackSrc = selectFallback(pool, article, used);
+    let fallbackSrc = selectFallback(pool, article, used);
     const canUseOriginal = Boolean(originalKey) && !used.has(originalKey);
     const src = canUseOriginal ? original : fallbackSrc;
+    if (imageKey(fallbackSrc) === imageKey(src)) {
+      fallbackSrc = selectFallback(pool, article, new Set([...used, imageKey(src)]));
+    }
 
     used.add(imageKey(src));
     resolved.set(article.id, {
