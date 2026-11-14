@@ -5,7 +5,7 @@ interface ArticleImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, "s
   fallbackSrc?: string;
 }
 
-export const ArticleImage = ({ src, fallbackSrc, alt, ...props }: ArticleImageProps) => {
+export const ArticleImage = ({ src, fallbackSrc, alt, fetchPriority, ...props }: ArticleImageProps) => {
   const [activeSrc, setActiveSrc] = useState(src);
 
   useEffect(() => {

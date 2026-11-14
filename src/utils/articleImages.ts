@@ -90,6 +90,21 @@ const SUPPLEMENTAL_IMAGES: Record<string, string[]> = {
   ].map(unsplash),
 };
 
+const SHARED_EDITORIAL_IMAGES = [
+  "photo-1504711434969-e33886168f5c",
+  "photo-1495020689067-958852a7765e",
+  "photo-1586339949916-3e9457bef6d3",
+  "photo-1497366754035-f200968a6e72",
+  "photo-1497366811353-6870744d04b2",
+  "photo-1497215728101-856f4ea42174",
+  "photo-1521737604893-d14cc237f11d",
+  "photo-1551836022-d5d88e9218df",
+  "photo-1557804506-669a67965ba0",
+  "photo-1556155092-490a1ba16284",
+  "photo-1542744095-291d1f67b221",
+  "photo-1517245386807-bb43f82c33c4",
+].map(unsplash);
+
 const TOPIC_RULES: Array<{ category: string; pattern: RegExp }> = [
   { category: "Krypto & Trading", pattern: /\b(bitcoin|ethereum|krypto|blockchain|defi|kryptovaluta)\b/i },
   { category: "Gründer & Startups", pattern: /\b(startup|startups|oppstart|gründer|venture|entreprenør)\b/i },

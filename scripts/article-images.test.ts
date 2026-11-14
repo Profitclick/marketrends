@@ -51,15 +51,24 @@ describe("category article images", () => {
     expect(resolveArticleImages([article({ ...bitcoin, title: "Helsevesenet får ny AI-løsning", tags: [] })]).get("bitcoin")?.src).not.toBe(first);
   });
 
-  test("fallbacks do not repeat while the relevant pool has unused photographs", () => {
-    const articles = Array.from({ length: 12 }, (_, index) => article({
-      id: `article-${index}`,
-      title: `Teknologisak nummer ${index}`,
+  test.each([
+    "Teknologi & AI",
+    "Krypto & Trading",
+    "Finans & Marked",
+    "Gründer & Startups",
+    "Penger & Karriere",
+    "Trender & Analyse",
+    "Guider & Forklart",
+  ])("all 24 cards have unique fallbacks in %s", (category) => {
+    const articles = Array.from({ length: 24 }, (_, index) => article({
+      id: `${category}-${index}`,
+      title: `Redaksjonell sak nummer ${index}`,
+      category,
     }));
     const result = resolveArticleImages(articles);
     const sources = articles.map((item) => result.get(item.id)?.src);
 
-    expect(new Set(sources).size).toBe(articles.length);
+    expect(new Set(sources).size).toBe(24);
   });
 
   test("fallback selection avoids photographs already used by original articles", () => {
