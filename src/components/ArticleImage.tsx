@@ -7,9 +7,13 @@ interface ArticleImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, "s
 
 export const ArticleImage = ({ src, fallbackSrc, alt, fetchPriority, ...props }: ArticleImageProps) => {
   const [activeSrc, setActiveSrc] = useState(src);
+  const previousSrc = useRef(src);
 
   useEffect(() => {
-    setActiveSrc(src);
+    if (previousSrc.current !== src) {
+      previousSrc.current = src;
+      setActiveSrc(src);
+    }
   }, [src]);
 
   const handleError = () => {
