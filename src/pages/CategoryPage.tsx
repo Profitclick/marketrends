@@ -233,7 +233,7 @@ export default function CategoryPage() {
                   {sideArticles.map((article, i) => {
                     const image = articleImages.get(article.id);
                     return (
-                      <Link key={article.id} to={`/${article.slug}`} className="group flex gap-4 py-4 first:pt-0 border-b border-border last:border-b-0">
+                      <Link key={article.id} to={`/${article.slug}`} className="group flex gap-4 py-3 first:pt-0 border-b border-border last:border-b-0">
                         <div className="flex-shrink-0 w-28 sm:w-32 lg:w-24 xl:w-28 aspect-[4/3] overflow-hidden bg-muted">
                           <ArticleImage
                             src={image?.src || article.image_url || getCategoryFallbackImage(article.category, i + 1)}

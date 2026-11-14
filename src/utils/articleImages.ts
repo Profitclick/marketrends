@@ -188,13 +188,14 @@ export function resolveArticleImages(
   articles: ArticleImageInput[],
 ): Map<string, ResolvedArticleImage> {
   const used = new Set<string>();
+  const reservedFallbacks = new Set<string>();
   const resolved = new Map<string, ResolvedArticleImage>();
 
   for (const article of articles) {
     const original = article.image_url?.trim() || "";
     const originalKey = imageKey(original);
     const pool = fallbackPool(relevantCategory(article));
-    let fallbackSrc = selectFallback(pool, article, used);
+    let fallbackSrc = selectFallback(pool, article, new Set([...used, ...reservedFallbacks]));
     const canUseOriginal = Boolean(originalKey) && !used.has(originalKey);
     const src = canUseOriginal ? original : fallbackSrc;
     if (imageKey(fallbackSrc) === imageKey(src)) {

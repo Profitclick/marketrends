@@ -81,6 +81,18 @@ describe("category article images", () => {
     expect(result.get("missing")?.src).not.toBe(fallback);
   });
 
+  test("broken original images have distinct error fallbacks", () => {
+    const articles = Array.from({ length: 6 }, (_, index) => article({
+      id: `original-${index}`,
+      title: `Originalsak ${index}`,
+      image_url: `https://media.example.com/original-${index}.jpg`,
+    }));
+    const result = resolveArticleImages(articles);
+    const fallbacks = articles.map((item) => result.get(item.id)?.fallbackSrc);
+
+    expect(new Set(fallbacks).size).toBe(articles.length);
+  });
+
   test("resolution does not mutate the article list", () => {
     const articles = [article(), article({ id: "article-2", title: "Ny sak" })];
     const snapshot = structuredClone(articles);
