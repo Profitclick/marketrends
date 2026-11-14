@@ -1,0 +1,21 @@
+name: SEO edge candidate tests (isolated)
+on:
+  push:
+    branches:
+      - infra/seo-edge-candidate-20261114
+    paths:
+      - 'infra/cloudflare/**'
+      - '.github/workflows/seo-edge-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  edge-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test infra/cloudflare/seo-edge-worker.test.mjs
