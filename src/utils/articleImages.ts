@@ -198,7 +198,7 @@ export function resolveArticleImages(
     let fallbackSrc = selectFallback(pool, article, new Set([...used, ...reservedFallbacks]));
     const canUseOriginal = Boolean(originalKey) && !used.has(originalKey);
     const src = canUseOriginal ? original : fallbackSrc;
-    if (imageKey(fallbackSrc) === imageKey(src)) {
+    if (canUseOriginal && imageKey(fallbackSrc) === imageKey(src)) {
       fallbackSrc = selectFallback(pool, article, new Set([...used, ...reservedFallbacks, imageKey(src)]));
     }
 
