@@ -12,6 +12,7 @@
 //   5. Every call writes a telemetry row.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
+import { refreshTopicStats } from "../_shared/topic-stats.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,6 +198,8 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  let topicStatsRefreshError: string | null = null;
 
   const tel = {
     ai_calls: 0,
@@ -431,12 +434,35 @@ Deno.serve(async (req) => {
       }
     }
 
-    await supabase.from("article_topics").delete().eq("article_id", articleId);
+    const { data: previousTopicRows, error: previousTopicsError } = await supabase
+      .from("article_topics")
+      .select("topic_id")
+      .eq("article_id", articleId);
+    if (previousTopicsError) throw previousTopicsError;
+
+    const affectedTopicIds = new Set<string>(
+      (previousTopicRows || []).map((row: any) => row.topic_id),
+    );
+
+    const { error: deleteTopicsError } = await supabase
+      .from("article_topics")
+      .delete()
+      .eq("article_id", articleId);
+    if (deleteTopicsError) throw deleteTopicsError;
+
     if (topicRows.length) {
       const { error: atErr } = await supabase.from("article_topics")
         .insert(topicRows.map((r) => ({ article_id: articleId, ...r })));
-      if (atErr) console.error("article_topics insert", atErr.message);
-      else tel.topic_relations_created = topicRows.length;
+      if (atErr) throw atErr;
+      tel.topic_relations_created = topicRows.length;
+      for (const row of topicRows) affectedTopicIds.add(row.topic_id);
+    }
+
+    try {
+      await refreshTopicStats(supabase, [...affectedTopicIds]);
+    } catch (error) {
+      topicStatsRefreshError = error instanceof Error ? error.message : String(error);
+      console.error("topic stats refresh failed", topicStatsRefreshError);
     }
 
     // --- 5. Related articles (unchanged scoring) ---
@@ -512,6 +538,7 @@ Deno.serve(async (req) => {
       article_relations: scored.length,
       entity_governance: govern,
       rejected_new_entities: rejections,
+      topic_stats_refresh_error: topicStatsRefreshError,
     });
 
 
