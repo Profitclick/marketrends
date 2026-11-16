@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { computeTopicStats, type TopicStatsRelation } from "./topic-stats-core.ts";
 
 export const MAX_BOUNDED_TOPIC_IDS = 100;
@@ -16,7 +17,7 @@ export function normalizeBoundedIds(
 }
 
 export async function refreshTopicStats(
-  supabase: any,
+  supabase: SupabaseClient,
   topicIds: string[],
   now = Date.now(),
 ): Promise<{ updated: number; topicArticleSets: Map<string, Set<string>> }> {
