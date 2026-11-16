@@ -441,7 +441,7 @@ Deno.serve(async (req) => {
     if (previousTopicsError) throw previousTopicsError;
 
     const affectedTopicIds = new Set<string>(
-      (previousTopicRows || []).map((row: any) => row.topic_id),
+      (previousTopicRows || []).map((row: { topic_id: string }) => row.topic_id),
     );
 
     const { error: deleteTopicsError } = await supabase
