@@ -2,6 +2,7 @@
 // picks, and rebuild the topic_relations graph (Jaccard on shared articles + entities).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { requireAdmin, unauthorized } from "../_shared/admin-auth.ts";
+import { normalizeBoundedIds, refreshTopicStats } from "../_shared/topic-stats.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +20,45 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    let body: Record<string, unknown> = {};
+    if (req.method !== "GET") {
+      try {
+        body = await req.json();
+      } catch {
+        body = {};
+      }
+    }
+
+    const boundedRequested =
+      Object.prototype.hasOwnProperty.call(body, "topic_ids") ||
+      Object.prototype.hasOwnProperty.call(body, "article_ids");
+
+    if (boundedRequested) {
+      const topicIds = normalizeBoundedIds(body.topic_ids, "topic_ids");
+      const articleIds = normalizeBoundedIds(body.article_ids, "article_ids");
+      const affectedTopicIds = new Set(topicIds);
+
+      if (articleIds.length) {
+        const { data: rows, error: rowsError } = await supabase
+          .from("article_topics")
+          .select("topic_id")
+          .in("article_id", articleIds);
+        if (rowsError) throw rowsError;
+        for (const row of rows || []) affectedTopicIds.add(row.topic_id);
+      }
+
+      const { updated } = await refreshTopicStats(supabase, [...affectedTopicIds]);
+      return new Response(JSON.stringify({
+        ok: true,
+        mode: "bounded",
+        topics_updated: updated,
+        requested_topic_ids: topicIds.length,
+        requested_article_ids: articleIds.length,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const now = Date.now();
     const cutoff7 = new Date(now - 7 * DAY).toISOString();
