@@ -110,8 +110,9 @@ export async function prerender(outDir, base, key, io = fs) {
     items: latest }));
 
   const p = parity(io, outDir, done);
-  const result = { written: done.size, articles: articles.length, failed, ...p, missing: p.missing.length, unexpected: p.unexpected.length, missingList: p.missing.slice(0, 10), unexpectedList: p.unexpected.slice(0, 10) };
+  const result = { written: done.size, articles: articles.length, failed, ...p, missing: p.missing.length, unexpected: p.unexpected.length, invalid: p.invalid.length, missingList: p.missing.slice(0, 10), unexpectedList: p.unexpected.slice(0, 10) };
   if (failed.length) throw Object.assign(new Error(`prerender: ${failed.length} expected routes failed: ${failed.slice(0, 5).join("; ")}`), { result });
+  if (p.invalid.length) throw Object.assign(new Error(`prerender parity: ${p.invalid.length} routes with homepage/non-specific HTML: ${p.invalid.slice(0, 5).join("; ")}`), { result });
   if (p.missing.length) throw Object.assign(new Error(`prerender parity: ${p.missing.length} sitemap URLs without HTML: ${p.missing.slice(0, 5).join(", ")}`), { result });
   return result;
 }
