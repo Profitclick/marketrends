@@ -149,5 +149,31 @@ export function parity(fs, outDir, prerendered) {
   const outputs = new Set([...prerendered].map((p) => SITE + p));
   const missing = [...sitemap].filter((u) => !outputs.has(u) || !fs.existsSync(routeFile(outDir, u.slice(SITE.length) || "/")));
   const unexpected = [...outputs].filter((u) => !sitemap.has(u));
-  return { sitemapFiles: files, sitemap: sitemap.size, outputs: outputs.size, missing, unexpected };
+  // Raw-output check: each written non-home sitemap URL must carry its own canonical/title/body, never the homepage's.
+  const invalid = [];
+  for (const u of sitemap) {
+    if (missing.includes(u)) continue;
+    const err = routeHtmlError(fs.readFileSync(routeFile(outDir, u.slice(SITE.length) || "/"), "utf8"), u);
+    if (err) invalid.push(`${u}: ${err}`);
+  }
+  return { sitemapFiles: files, sitemap: sitemap.size, outputs: outputs.size, missing, unexpected, invalid };
+}
+
+export const HOME_TITLE = "Marketrends.no – nyheter om finans, fintech, krypto og AI";
+export const HOME_H1 = "Marketrends.no – nyheter og analyse om finans og teknologi";
+
+// Returns null when raw HTML is route-specific for url, otherwise the reason. Homepage itself is exempt from the fallback rules.
+export function routeHtmlError(html, url) {
+  const canon = [...html.matchAll(/<link rel="canonical" href="([^"]*)"/g)].map((m) => unxml(m[1]));
+  if (canon.length !== 1) return `expected 1 canonical, found ${canon.length}`;
+  if (canon[0] !== url) return `canonical ${canon[0]}`;
+  const titles = [...html.matchAll(/<title[^>]*>([\s\S]*?)<\/title>/g)].map((m) => unxml(m[1]).trim());
+  if (titles.length !== 1 || !titles[0]) return "expected 1 non-empty title";
+  if (!html.includes("<main data-prerender-body>")) return "no prerendered body";
+  const h1 = html.match(/<h1>([\s\S]*?)<\/h1>/);
+  if (!h1 || !h1[1].trim()) return "no h1";
+  if (url === SITE + "/") return null;
+  if (titles[0] === HOME_TITLE) return "homepage title";
+  if (unxml(h1[1]).trim() === HOME_H1) return "homepage body";
+  return null;
 }
