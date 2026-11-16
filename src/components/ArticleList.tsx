@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ExternalLink, Eye, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { getTopicIdsForArticles, refreshTopicStatsForArticleIds, refreshTopicStatsForTopicIds } from "@/utils/topicStatsRefresh";
 
 interface Article {
   id: string;
@@ -51,8 +52,17 @@ export const ArticleList = ({ onUpdate }: ArticleListProps) => {
 
   const handleDelete = async (id: string) => {
     try {
+      const topicIds = await getTopicIdsForArticles([id]);
       const { error } = await supabase.from("articles").delete().eq("id", id);
       if (error) throw error;
+
+      try {
+        await refreshTopicStatsForTopicIds(topicIds);
+      } catch (refreshError) {
+        console.error("Topic stats refresh failed after article delete:", refreshError);
+        toast.warning("Article deleted, but topic stats refresh failed");
+      }
+
       toast.success("Article deleted");
       fetchArticles();
       onUpdate();
@@ -69,6 +79,14 @@ export const ArticleList = ({ onUpdate }: ArticleListProps) => {
         .update({ published: !currentStatus })
         .eq("id", id);
       if (error) throw error;
+
+      try {
+        await refreshTopicStatsForArticleIds([id]);
+      } catch (refreshError) {
+        console.error("Topic stats refresh failed after publish toggle:", refreshError);
+        toast.warning("Publish status changed, but topic stats refresh failed");
+      }
+
       toast.success(currentStatus ? "Article unpublished" : "Article published");
       fetchArticles();
       onUpdate();
