@@ -13,6 +13,7 @@ import { ContextualLinks } from "@/components/ContextualLinks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Home, ChevronRight, Flame } from "lucide-react";
 import { getCategoryFallbackImage } from "@/utils/seo";
+import { getDisplayedTopicArticleCount } from "@/utils/topicCounts";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 
@@ -151,6 +152,7 @@ const TopicPage = () => {
     return days < 7;
   }).slice(0, 6);
 
+  const displayedArticleCount = getDisplayedTopicArticleCount(topic.article_count, articles.length);
   const isHot = topic.articles_last_7d >= 3;
   const lastUpdatedRel = topic.last_article_at
     ? format(new Date(topic.last_article_at), "d. MMM yyyy", { locale: nb })
@@ -213,7 +215,7 @@ const TopicPage = () => {
         <header className="mb-12 pb-9 border-b border-border">
           <div className="flex items-center gap-3 mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
             <span className="text-[11px] font-bold uppercase tracking-widest text-destructive">
-              Tema · {topic.article_count} artikler
+              Tema · {displayedArticleCount} artikler
             </span>
             {isHot && (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-destructive">
