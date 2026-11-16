@@ -13,6 +13,7 @@ import { Slider } from "@/components/ui/slider";
 import { CheckCircle, XCircle, Edit, ExternalLink, Sparkles, AlertCircle, Clock, Zap, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { getTopicIdsForArticles, refreshTopicStatsForArticleIds, refreshTopicStatsForTopicIds } from "@/utils/topicStatsRefresh";
 
 interface Article {
   id: string;
@@ -127,12 +128,20 @@ export const ArticleModeration = ({ onUpdate }: ArticleModerationProps) => {
 
     setBulkActionLoading(true);
     try {
+      const articleIds = Array.from(selectedArticles);
       const { error } = await supabase
         .from("articles")
         .update({ published: true })
-        .in("id", Array.from(selectedArticles));
+        .in("id", articleIds);
 
       if (error) throw error;
+
+      try {
+        await refreshTopicStatsForArticleIds(articleIds);
+      } catch (refreshError) {
+        console.error("Topic stats refresh failed after bulk approval:", refreshError);
+        toast.warning("Artiklene ble publisert, men topic-stats kunne ikke oppdateres");
+      }
 
       toast.success(`${selectedArticles.size} artikler godkjent og publisert!`);
       setSelectedArticles(new Set());
@@ -154,12 +163,21 @@ export const ArticleModeration = ({ onUpdate }: ArticleModerationProps) => {
 
     setBulkActionLoading(true);
     try {
+      const articleIds = Array.from(selectedArticles);
+      const topicIds = await getTopicIdsForArticles(articleIds);
       const { error } = await supabase
         .from("articles")
         .delete()
-        .in("id", Array.from(selectedArticles));
+        .in("id", articleIds);
 
       if (error) throw error;
+
+      try {
+        await refreshTopicStatsForTopicIds(topicIds);
+      } catch (refreshError) {
+        console.error("Topic stats refresh failed after bulk reject:", refreshError);
+        toast.warning("Artiklene ble slettet, men topic-stats kunne ikke oppdateres");
+      }
 
       toast.success(`${selectedArticles.size} artikler avvist og slettet`);
       setSelectedArticles(new Set());
@@ -182,6 +200,13 @@ export const ArticleModeration = ({ onUpdate }: ArticleModerationProps) => {
 
       if (error) throw error;
 
+      try {
+        await refreshTopicStatsForArticleIds([id]);
+      } catch (refreshError) {
+        console.error("Topic stats refresh failed after approval:", refreshError);
+        toast.warning("Artikkelen ble publisert, men topic-stats kunne ikke oppdateres");
+      }
+
       toast.success("Artikkel godkjent og publisert!");
       fetchDraftArticles();
       onUpdate();
@@ -193,12 +218,20 @@ export const ArticleModeration = ({ onUpdate }: ArticleModerationProps) => {
 
   const handleReject = async (id: string) => {
     try {
+      const topicIds = await getTopicIdsForArticles([id]);
       const { error } = await supabase
         .from("articles")
         .delete()
         .eq("id", id);
 
       if (error) throw error;
+
+      try {
+        await refreshTopicStatsForTopicIds(topicIds);
+      } catch (refreshError) {
+        console.error("Topic stats refresh failed after reject:", refreshError);
+        toast.warning("Artikkelen ble slettet, men topic-stats kunne ikke oppdateres");
+      }
 
       toast.success("Artikkel avvist og slettet");
       fetchDraftArticles();
