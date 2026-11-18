@@ -1,5 +1,6 @@
 import {test,expect} from 'bun:test';
 import {canonicalUrl,aggregate,recommend,covers} from '../supabase/functions/_shared/gsc-metrics';
+import {GSC_MAX_ROWS_PER_DAY,GSC_PAGE_SIZE,GSC_SYNC_CONCURRENCY,pageStarts,reportingDays} from '../supabase/functions/_shared/gsc-sync-plan';
 test('canonical normalizes only supported legacy clusters and origin',()=>{
   expect(canonicalUrl('http://www.marketrends.no/cluster/ai/')).toBe('https://marketrends.no/ai');
   expect(canonicalUrl('https://marketrends.no/cluster/unknown')).toBe('https://marketrends.no/cluster/unknown');
@@ -21,4 +22,12 @@ test('unmapped query cannot become a content gap',()=>{
 });
 test('verified property coverage is scheme/path sensitive except domains',()=>{
  expect(covers('sc-domain:marketrends.no')).toBe(true);expect(covers('https://marketrends.no/other/')).toBe(false);expect(covers('http://marketrends.no/')).toBe(false);
+});
+test('GSC extraction plan is daily, bounded and deterministic',()=>{
+  expect(reportingDays('2026-11-16',3)).toEqual(['2026-11-14','2026-11-15','2026-11-16']);
+  expect(pageStarts()).toEqual([0,25000]);
+  expect(GSC_PAGE_SIZE).toBe(25000);
+  expect(GSC_MAX_ROWS_PER_DAY).toBe(50000);
+  expect(GSC_SYNC_CONCURRENCY).toBeGreaterThan(0);
+  expect(GSC_SYNC_CONCURRENCY).toBeLessThanOrEqual(4);
 });
