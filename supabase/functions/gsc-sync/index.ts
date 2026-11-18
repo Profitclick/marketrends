@@ -2,6 +2,7 @@ import {corsHeaders} from 'npm:@supabase/supabase-js@2/cors';
 import {z} from 'npm:zod@3';
 import {requireAdmin,unauthorized} from '../_shared/admin-auth.ts';
 import {canonicalUrl,covers,TARGET,aggregate,recommend, type Metric} from '../_shared/gsc-metrics.ts';
+import {GSC_MAX_ROWS_PER_DAY,GSC_PAGE_SIZE,GSC_SYNC_CONCURRENCY,pageStarts,reportingDays} from '../_shared/gsc-sync-plan.ts';
 import {evergreenGuard} from '../_shared/evergreen-guard.ts';
 import {pillarTerritories} from '../_shared/gsc-pillars.ts';
 const schema=z.object({action:z.enum(['sync','read','select']).default('read'),site_url:z.string().max(2048).optional(),days:z.number().int().min(1).max(90).default(7)});
@@ -42,27 +43,30 @@ Deno.serve(async(req)=>{
   checked(await db.from('gsc_sync_state').upsert({id:true,selected_site_url:site,status:'SYNCING',last_started_at:new Date().toISOString(),error:null}));
   let rowsIngested=0;
   const days=state?.last_completed_at?input.days:90;
-  const startDate=new Date(end.getTime()-(days-1)*86400000).toISOString().slice(0,10);
-  for(const dataset of ['page','query']){
-    const rowsByDay=new Map<string,any[]>();let truncated=false;
-    for(let start=0;start<50000;start+=25000){
-     const result=await call(`/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,{startDate,endDate,type:'web',dataState:'final',dimensions:dataset==='page'?['date','page']:['date','page','query'],aggregationType:'byPage',rowLimit:25000,startRow:start});
-     for(const r of result.rows??[]){
-      const canonical=canonicalUrl(r.keys[1]);if(!canonical)continue;
-      if(![r.clicks,r.impressions,r.ctr,r.position].every(Number.isFinite)||r.clicks<0||r.impressions<0||r.ctr<0||r.ctr>1||r.position<0)throw new Error('Invalid Google metric values');
-      const day=r.keys[0];
-      const rows=rowsByDay.get(day)??[];
-      rows.push({site_url:site,date:day,dataset,page:r.keys[1],canonical_url:canonical,query:dataset==='query'?r.keys[2]:'',clicks:r.clicks,impressions:r.impressions,ctr:r.ctr,position:r.position,search_type:'web',device:'',country:'',appearance:'',ingested_at:new Date().toISOString()});
-      rowsByDay.set(day,rows);
-     }
-     if((result.rows??[]).length<25000)break;if(start===25000)truncated=true;
+  const syncDays=reportingDays(endDate,days);
+  const syncDatasetDay=async(dataset:'page'|'query',day:string)=>{
+   const rows:any[]=[];let status:'FINAL'|'TRUNCATED'='FINAL';
+   // Search Analytics extraction limits apply per reporting day. Query one day at a time.
+   for(const startRow of pageStarts()){
+    const result=await call(`/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,{startDate:day,endDate:day,type:'web',dataState:'final',dimensions:dataset==='page'?['date','page']:['date','page','query'],aggregationType:'byPage',rowLimit:GSC_PAGE_SIZE,startRow});
+    const pageRows=result.rows??[];
+    for(const r of pageRows){
+     if(r.keys?.[0]!==day)throw new Error('Unexpected Google reporting date');
+     const canonical=canonicalUrl(r.keys[1]);if(!canonical)continue;
+     if(![r.clicks,r.impressions,r.ctr,r.position].every(Number.isFinite)||r.clicks<0||r.impressions<0||r.ctr<0||r.ctr>1||r.position<0)throw new Error('Invalid Google metric values');
+     rows.push({site_url:site,date:day,dataset,page:r.keys[1],canonical_url:canonical,query:dataset==='query'?r.keys[2]:'',clicks:r.clicks,impressions:r.impressions,ctr:r.ctr,position:r.position,search_type:'web',device:'',country:'',appearance:'',ingested_at:new Date().toISOString()});
     }
-    for(let offset=days-1;offset>=0;offset--){
-    const date=new Date(end);date.setUTCDate(date.getUTCDate()-offset);const day=date.toISOString().slice(0,10);
-    const rows=rowsByDay.get(day)??[];
-    // Day replacement avoids stale rows when Google revises data. Done atomically by RPC.
-    checked(await db.rpc('phase7c_replace_gsc_day',{p_site:site,p_date:day,p_dataset:dataset,p_rows:rows,p_status:truncated?'TRUNCATED':'FINAL'}));rowsIngested+=rows.length;
-    }
+    if(pageRows.length<GSC_PAGE_SIZE)break;
+    if(startRow+GSC_PAGE_SIZE>=GSC_MAX_ROWS_PER_DAY)status='TRUNCATED';
+   }
+   checked(await db.rpc('phase7c_replace_gsc_day',{p_site:site,p_date:day,p_dataset:dataset,p_rows:rows,p_status:status}));
+   return rows.length;
+  };
+  for(const dataset of ['page','query'] as const){
+   for(let i=0;i<syncDays.length;i+=GSC_SYNC_CONCURRENCY){
+    const counts=await Promise.all(syncDays.slice(i,i+GSC_SYNC_CONCURRENCY).map(day=>syncDatasetDay(dataset,day)));
+    rowsIngested+=counts.reduce((sum,count)=>sum+count,0);
+   }
   }
   const raw=await all(db,'gsc_daily_metrics',q=>q.eq('site_url',site).eq('dataset','page').gte('date',new Date(end.getTime()-179*86400000).toISOString().slice(0,10)).order('id'));
   const queryRows=await all(db,'gsc_daily_metrics',q=>q.eq('site_url',site).eq('dataset','query').gte('date',new Date(end.getTime()-89*86400000).toISOString().slice(0,10)).order('id'));
