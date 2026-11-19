@@ -121,3 +121,19 @@ No production migration is approved only because it fixes HTTP semantics. Before
 2. observable Lovable runtime/hosting cost implications.
 
 Do not invent a runtime cost estimate when actual metering is unavailable.
+
+## Session log — 2026-11-19
+
+Current holding state confirmed:
+
+- Production remains unchanged on `main` commit `defc4f2414e2ed8245b8a6604a57c9d4cb7aee9b`.
+- Readiness branch: `chore/a01-next-phase-readiness`.
+- Readiness branch head at hold point: `2e338971930ab23308ef8bd6baf4d5c02046f233`.
+- Branch contains only the expanded read-only HTTP audit and this readiness documentation.
+- Lovable migration has not been started because credits are unavailable.
+- No Lovable credits were intentionally consumed for migration work.
+- No production publish/deploy, DNS, Cloudflare, database, scheduler, GSC or sitemap-architecture changes were made.
+- AUDIT-01 remains open on the known P0 HTTP semantics: real 404 for unknown/invalid public routes and server-side permanent redirects for legacy cluster routes.
+- Next action when Lovable credits return: native TanStack Start migration in draft/preview only, then run build/typecheck/tests, preview-targeted raw HTTP audit, canonical regression checks and cost gate before any publish decision.
+
+Decision: keep production stable and do not add further workaround changes to the current static SPA while waiting for the next credit window.
