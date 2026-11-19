@@ -99,8 +99,7 @@ function evaluate(route, status, location, contentType, body) {
   return { issues, robots, googlebot, canonical: actualCanonical };
 }
 
-const results = [];
-for (const route of routes) {
+const results = await Promise.all(routes.map(async (route) => {
   try {
     const response = await fetch(route.url, {
       redirect: 'manual',
@@ -111,11 +110,11 @@ for (const route of routes) {
     const location = response.headers.get('location');
     const contentType = response.headers.get('content-type');
     const check = evaluate(route, response.status, location, contentType, body);
-    results.push({ id: route.id, url: route.url, status: response.status, location, contentType, ...check, passed: check.issues.length === 0, advisory: route.advisory === true, workerSource: route.kind === 'news_worker' ? response.headers.get('x-marketrends-sitemap-source') : null, workerNewsCount: route.kind === 'news_worker' ? response.headers.get('x-marketrends-news-count') : null });
+    return { id: route.id, url: route.url, status: response.status, location, contentType, ...check, passed: check.issues.length === 0, advisory: route.advisory === true, workerSource: route.kind === 'news_worker' ? response.headers.get('x-marketrends-sitemap-source') : null, workerNewsCount: route.kind === 'news_worker' ? response.headers.get('x-marketrends-news-count') : null };
   } catch (error) {
-    results.push({ id: route.id, url: route.url, passed: false, advisory: false, issues: [`Fetch failed: ${error.message}`] });
+    return { id: route.id, url: route.url, passed: false, advisory: route.advisory === true, issues: [`Fetch failed: ${error.message}`] };
   }
-}
+}));
 
 const timestamp = new Date().toISOString();
 const failures = results.filter((result) => !result.passed && !result.advisory);
