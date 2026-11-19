@@ -1,19 +1,35 @@
 // Read-only production smoke check. No credentials, mutations, AI or GSC decisions.
 import fs from 'node:fs';
 
-const ORIGIN = 'https://marketrends.no';
+const CANONICAL_ORIGIN = 'https://marketrends.no';
+const ORIGIN = (process.env.MARKETRENDS_AUDIT_ORIGIN || CANONICAL_ORIGIN).replace(/\/$/, '');
 const NEWS = 'https://news-sitemap.marketrends.no/sitemap-news.xml';
 const routes = [
   { id: 'homepage', url: `${ORIGIN}/`, kind: 'homepage' },
   { id: 'admin', url: `${ORIGIN}/admin`, kind: 'private' },
   { id: 'auth', url: `${ORIGIN}/auth`, kind: 'private' },
   { id: 'dashboard', url: `${ORIGIN}/dashboard`, kind: 'private' },
-  { id: 'unknown', url: `${ORIGIN}/__seo_nonexistent_route_20261113`, kind: 'not_found' },
-  { id: 'unknown_cluster', url: `${ORIGIN}/cluster/__seo_nonexistent_20261113`, kind: 'not_found' },
+
+  // AUDIT-01 P0: every unknown or invalid public route must fail closed at HTTP level.
+  { id: 'unknown', url: `${ORIGIN}/__seo_nonexistent_route_20261119`, kind: 'not_found' },
+  { id: 'invalid_category', url: `${ORIGIN}/kategori/__seo_nonexistent_20261119`, kind: 'not_found' },
+  { id: 'invalid_topic', url: `${ORIGIN}/topic/__seo_nonexistent_20261119`, kind: 'not_found' },
+  { id: 'invalid_entity', url: `${ORIGIN}/entity/__seo_nonexistent_20261119`, kind: 'not_found' },
+  { id: 'invalid_guide', url: `${ORIGIN}/guide/__seo_nonexistent_20261119`, kind: 'not_found' },
+  { id: 'invalid_knowledge', url: `${ORIGIN}/knowledge/__seo_nonexistent_20261119`, kind: 'not_found' },
+  { id: 'invalid_compare', url: `${ORIGIN}/compare/__seo_nonexistent_20261119`, kind: 'not_found' },
+  { id: 'invalid_intent', url: `${ORIGIN}/intent/__seo_nonexistent_20261119`, kind: 'not_found' },
+  { id: 'unknown_cluster', url: `${ORIGIN}/cluster/__seo_nonexistent_20261119`, kind: 'not_found' },
+
+  // AUDIT-01 P0: legacy cluster URLs must be real permanent server redirects.
   { id: 'legacy_cluster', url: `${ORIGIN}/cluster/ai`, kind: 'redirect', target: `${ORIGIN}/ai` },
+
+  // AUDIT-01 P1 observation: arbitrary resource types currently collapse to /ressurser.
+  { id: 'resource_alias', url: `${ORIGIN}/ressurser/__seo_nonexistent_20261119`, kind: 'resource_alias', advisory: true },
+
   { id: 'sitemap_index', url: `${ORIGIN}/sitemap-index.xml`, kind: 'sitemap_index' },
   { id: 'worker_news', url: NEWS, kind: 'news_worker' },
-  { id: 'legacy_news', url: `${ORIGIN}/sitemap-news.xml`, kind: 'news_legacy' },
+  { id: 'legacy_news', url: `${ORIGIN}/sitemap-news.xml`, kind: 'news_legacy', advisory: true },
 ];
 
 function getAttr(tag, attr) {
@@ -45,7 +61,7 @@ function evaluate(route, status, location, contentType, body) {
   switch (route.kind) {
     case 'homepage':
       expect(status === 200, 'Homepage must serve HTTP 200');
-      expect(actualCanonical === `${ORIGIN}/`, 'Homepage must have self-canonical');
+      expect(actualCanonical === `${CANONICAL_ORIGIN}/`, 'Homepage must have canonical production self-reference');
       break;
     case 'private':
       expect(status === 200, 'Private route must serve its own HTML shell');
@@ -62,11 +78,15 @@ function evaluate(route, status, location, contentType, body) {
       expect(resolved === route.target, 'Legacy cluster must set Location to canonical short route');
       break;
     }
+    case 'resource_alias':
+      expect(status === 200, 'Resource alias observation expects HTTP 200');
+      expect(actualCanonical === `${CANONICAL_ORIGIN}/ressurser`, 'Resource alias must canonicalize to /ressurser');
+      break;
     case 'sitemap_index':
       expect(status === 200 && xml, 'Sitemap index must serve XML with HTTP 200');
       expect(/<sitemapindex\b/i.test(body), 'Sitemap index must be sitemapindex XML');
       expect(body.includes(`<loc>${NEWS}</loc>`), 'Sitemap index must reference Worker news sitemap');
-      expect(!body.includes(`<loc>${ORIGIN}/sitemap-news.xml</loc>`), 'Sitemap index must not use static fallback');
+      expect(!body.includes(`<loc>${CANONICAL_ORIGIN}/sitemap-news.xml</loc>`), 'Sitemap index must not use static fallback');
       break;
     case 'news_worker':
       expect(status === 200 && xml, 'Worker news sitemap must serve XML with HTTP 200');
@@ -91,7 +111,7 @@ for (const route of routes) {
     const location = response.headers.get('location');
     const contentType = response.headers.get('content-type');
     const check = evaluate(route, response.status, location, contentType, body);
-    results.push({ id: route.id, url: route.url, status: response.status, location, contentType, ...check, passed: check.issues.length === 0, advisory: route.kind === 'news_legacy', workerSource: route.kind === 'news_worker' ? response.headers.get('x-marketrends-sitemap-source') : null, workerNewsCount: route.kind === 'news_worker' ? response.headers.get('x-marketrends-news-count') : null });
+    results.push({ id: route.id, url: route.url, status: response.status, location, contentType, ...check, passed: check.issues.length === 0, advisory: route.advisory === true, workerSource: route.kind === 'news_worker' ? response.headers.get('x-marketrends-sitemap-source') : null, workerNewsCount: route.kind === 'news_worker' ? response.headers.get('x-marketrends-news-count') : null });
   } catch (error) {
     results.push({ id: route.id, url: route.url, passed: false, advisory: false, issues: [`Fetch failed: ${error.message}`] });
   }
@@ -99,12 +119,12 @@ for (const route of routes) {
 
 const timestamp = new Date().toISOString();
 const failures = results.filter((result) => !result.passed && !result.advisory);
-const data = { timestamp, origin: ORIGIN, mode: 'read-only', failures: failures.length, checks: results };
+const data = { timestamp, auditOrigin: ORIGIN, canonicalOrigin: CANONICAL_ORIGIN, mode: 'read-only', failures: failures.length, checks: results };
 fs.mkdirSync('seo-audit', { recursive: true });
 fs.writeFileSync('seo-audit/http-audit.json', `${JSON.stringify(data, null, 2)}\n`);
 const lines = [
   '# Marketrends read-only production HTTP audit',
-  `Checked ${timestamp}. This observes the initial HTTP response, not SPA navigation. No writes or content changes.`,
+  `Checked ${timestamp}. Audit origin: ${ORIGIN}. Canonical origin: ${CANONICAL_ORIGIN}. This observes the initial HTTP response, not SPA navigation. No writes or content changes.`,
   '', '| Check | HTTP | Result | Evidence |', '|---|---:|---|---|',
   ...results.map((r) => `| ${r.id} | ${r.status ?? 'n/a'} | ${r.passed ? 'PASS' : 'FAIL'}${r.advisory ? ' (advisory)' : ''} | ${(r.issues ?? []).join('; ') || 'Expected response'} |`),
   '', `**Blocking HTTP failures: ${failures.length}.**`,
