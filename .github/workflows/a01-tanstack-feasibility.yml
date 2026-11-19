@@ -1,0 +1,49 @@
+name: A01 TanStack Start HTTP feasibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/a01-tanstack-feasibility-20261119
+    paths:
+      - 'experiments/a01-tanstack-start/**'
+      - '.github/workflows/a01-tanstack-feasibility.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  http-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: experiments/a01-tanstack-start
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install isolated experiment dependencies
+        run: npm install --no-package-lock --no-audit --no-fund
+
+      - name: Build production server
+        run: npm run build
+
+      - name: Verify raw production-mode HTTP semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT=3000 npm start > /tmp/a01-tanstack-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; cat /tmp/a01-tanstack-server.log || true' EXIT
+
+          for i in $(seq 1 30); do
+            if curl --silent --fail --max-time 2 http://127.0.0.1:3000/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          npm run verify:prod
