@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import animatePlugin from "tailwindcss-animate";
 
 export default {
   
@@ -57,13 +58,13 @@ export default {
   				border: 'hsl(var(--sidebar-border))',
   				ring: 'hsl(var(--sidebar-ring))'
   			},
-   			'market-ticker': 'hsl(var(--market-ticker))',
-   			'market-ticker-foreground': 'hsl(var(--market-ticker-foreground))',
-   			'market-ticker-muted': 'hsl(var(--market-ticker-muted))',
-   			'market-positive': 'hsl(var(--market-positive))',
-   			'market-negative': 'hsl(var(--market-negative))',
-   			'header-footer': 'hsl(var(--header-footer))',
-   			'header-footer-foreground': 'hsl(var(--header-footer-foreground))'
+  			'market-ticker': 'hsl(var(--market-ticker))',
+  			'market-ticker-foreground': 'hsl(var(--market-ticker-foreground))',
+  			'market-ticker-muted': 'hsl(var(--market-ticker-muted))',
+  			'market-positive': 'hsl(var(--market-positive))',
+  			'market-negative': 'hsl(var(--market-negative))',
+  			'header-footer': 'hsl(var(--header-footer))',
+  			'header-footer-foreground': 'hsl(var(--header-footer-foreground))'
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
@@ -138,5 +139,5 @@ export default {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [animatePlugin],
 } satisfies Config;
