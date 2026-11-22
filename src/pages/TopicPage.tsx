@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  loadTopicRouteData,
+  type TopicRouteArticle,
+  type TopicRouteEntity,
+  type TopicRouteTopic,
+} from "@/lib/routeData";
+import { topicMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { MarketTicker } from "@/components/MarketTicker";
 import { LatestNewsTicker } from "@/components/LatestNewsTicker";
@@ -17,97 +24,51 @@ import { getDisplayedTopicArticleCount } from "@/utils/topicCounts";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 
-const BASE_URL = "https://marketrends.no";
-
-interface Topic {
-  id: string; slug: string; name: string; description: string | null; category_hint: string | null;
-  article_count: number; articles_last_7d: number; meta_title: string | null; meta_description: string | null;
-  hero_article_id: string | null; explainer_article_id: string | null; last_article_at: string | null; og_image: string | null;
-}
-
-interface Article {
-  id: string; title: string; slug: string; category: string; tags: string[];
-  meta_description: string | null; image_url: string | null; created_at: string;
-  source_name: string; article_type: string | null;
-}
-
-interface RelatedEntity { id: string; slug: string; name: string; type: string; mention_count: number }
-
 const TopicPage = () => {
   const { slug } = useParams();
-  const [topic, setTopic] = useState<Topic | null>(null);
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [hero, setHero] = useState<Article | null>(null);
-  const [explainer, setExplainer] = useState<Article | null>(null);
-  const [entities, setEntities] = useState<RelatedEntity[]>([]);
+  const [topic, setTopic] = useState<TopicRouteTopic | null>(null);
+  const [articles, setArticles] = useState<TopicRouteArticle[]>([]);
+  const [hero, setHero] = useState<TopicRouteArticle | null>(null);
+  const [explainer, setExplainer] = useState<TopicRouteArticle | null>(null);
+  const [entities, setEntities] = useState<TopicRouteEntity[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data: topicData } = await supabase
-        .from("topics").select("*").eq("slug", slug).maybeSingle();
-      if (cancelled) return;
-      if (!topicData) { setNotFound(true); setLoading(false); return; }
-      setTopic(topicData);
+    setLoading(true);
+    setNotFound(false);
 
-      const { data: at } = await supabase
-        .from("article_topics")
-        .select("relevance_score, articles!inner(id, title, slug, category, tags, meta_description, image_url, created_at, source_name, article_type, published)")
-        .eq("topic_id", topicData.id)
-        .order("relevance_score", { ascending: false })
-        .limit(60);
-      const arts: Article[] = (at || [])
-        .map((r: any) => r.articles)
-        .filter((a: any) => a && a.published);
-      const sortedNew = [...arts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    loadTopicRouteData(supabase, slug)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.status !== "found") {
+          setNotFound(true);
+          setTopic(null);
+          setArticles([]);
+          setHero(null);
+          setExplainer(null);
+          setEntities([]);
+          return;
+        }
 
-      // Hero
-      let heroArt: Article | null = null;
-      if (topicData.hero_article_id) {
-        heroArt = arts.find((a) => a.id === topicData.hero_article_id) || null;
-      }
-      if (!heroArt) heroArt = sortedNew[0] || null;
+        setTopic(result.data.topic);
+        setArticles(result.data.articles);
+        setHero(result.data.hero);
+        setExplainer(result.data.explainer);
+        setEntities(result.data.entities);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Error loading topic route:", error);
+          setNotFound(true);
+          setTopic(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-      // Explainer
-      let exp: Article | null = null;
-      if (topicData.explainer_article_id) {
-        exp = arts.find((a) => a.id === topicData.explainer_article_id) || null;
-      }
-      if (!exp) exp = arts.find((a) => a.article_type === "guide") || null;
-
-      // Entities (most-mentioned within this topic's articles)
-      const articleIds = arts.map((a) => a.id);
-      let entList: RelatedEntity[] = [];
-      if (articleIds.length) {
-        const { data: ae } = await supabase
-          .from("article_entities")
-          .select("entity_id, entities!inner(id, slug, name, type, mention_count)")
-          .in("article_id", articleIds)
-          .limit(200);
-        const counts = new Map<string, { ent: RelatedEntity; count: number }>();
-        (ae || []).forEach((r: any) => {
-          const e = r.entities;
-          if (!e) return;
-          const cur = counts.get(e.id);
-          if (cur) cur.count++;
-          else counts.set(e.id, { ent: e, count: 1 });
-        });
-        entList = [...counts.values()]
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 12)
-          .map((x) => x.ent);
-      }
-
-      if (cancelled) return;
-      setArticles(sortedNew);
-      setHero(heroArt);
-      setExplainer(exp);
-      setEntities(entList);
-      setLoading(false);
-    })();
     return () => { cancelled = true; };
   }, [slug]);
 
@@ -141,7 +102,6 @@ const TopicPage = () => {
     );
   }
 
-  const canonicalUrl = `${BASE_URL}/topic/${topic.slug}`;
   const heroExclId = new Set<string>([hero?.id, explainer?.id].filter(Boolean) as string[]);
   const latest = articles.filter((a) => !heroExclId.has(a.id)).slice(0, 10);
   const mostRelevant = articles.filter((a) => !heroExclId.has(a.id)).slice(0, 5);
@@ -158,45 +118,12 @@ const TopicPage = () => {
     ? format(new Date(topic.last_article_at), "d. MMM yyyy", { locale: nb })
     : null;
 
-  const collectionSchema = {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    name: topic.name,
-    description: topic.description || topic.meta_description || `Nyheter og analyse om ${topic.name}`,
-    url: canonicalUrl,
-    inLanguage: "nb-NO",
-    mainEntity: {
-      "@type": "ItemList",
-      numberOfItems: articles.length,
-      itemListElement: articles.slice(0, 20).map((a, i) => ({
-        "@type": "ListItem",
-        position: i + 1,
-        url: `${BASE_URL}/${a.slug}`,
-        name: a.title,
-      })),
-    },
-  };
+  const seo = topicMetadata(topic, articles, hero, entities);
 
-  const breadcrumbs = [
-    { name: "Hjem", url: BASE_URL },
-    { name: "Tema", url: `${BASE_URL}/` },
-    { name: topic.name, url: canonicalUrl },
-  ];
-
-  const ogImage = topic.og_image || hero?.image_url || (hero ? getCategoryFallbackImage(hero.category, 0) : undefined);
 
   return (
     <div className="min-h-dvh bg-background">
-      <SEOHead
-        title={topic.meta_title || `${topic.name} – nyheter og analyse`}
-        description={topic.meta_description || topic.description || `Følg ${topic.name} på Marketrends.no.`}
-        canonicalUrl={canonicalUrl}
-        ogType="website"
-        ogImage={ogImage}
-        breadcrumbs={breadcrumbs}
-        articleSchema={collectionSchema}
-        tags={entities.slice(0, 5).map((e) => e.name)}
-      />
+      <SEOHead {...seo} />
 
       <MarketTicker />
       <Navigation />

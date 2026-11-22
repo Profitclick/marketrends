@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { loadKnowledgeRouteData, type KnowledgeRoutePage } from "@/lib/routeData";
+import { knowledgeMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { NewsFooter } from "@/components/NewsFooter";
 import { SEOHead } from "@/components/SEOHead";
@@ -9,37 +11,43 @@ import { DiscoveryFooter } from "@/components/DiscoveryFooter";
 import { ContextualLinks } from "@/components/ContextualLinks";
 import { Home, ChevronRight } from "lucide-react";
 
-const BASE = "https://marketrends.no";
-
 export default function KnowledgePage() {
   const { slug } = useParams<{ slug: string }>();
-  const [page, setPage] = useState<any>(null);
+  const [page, setPage] = useState<KnowledgeRoutePage | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!slug) return;
+    let cancelled = false;
     setLoading(true);
-    supabase.from("knowledge_pages").select("*").eq("slug", slug).maybeSingle()
-      .then(({ data }) => { setPage(data); setLoading(false); });
+    setPage(null);
+
+    loadKnowledgeRouteData(supabase, slug)
+      .then((result) => {
+        if (!cancelled) setPage(result.status === "found" ? result.data : null);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Error loading knowledge route:", error);
+          setPage(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [slug]);
 
   if (loading) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10 text-muted-foreground">Laster…</div></div>;
   if (!page) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10">Siden finnes ikke.</div></div>;
 
-  const url = `${BASE}/knowledge/${page.slug}`;
-  const takeaways: string[] = page.key_takeaways_json || [];
-  const faqs: { q: string; a: string }[] = page.faq_json || [];
+  const takeaways = Array.isArray(page.key_takeaways_json) ? page.key_takeaways_json.filter((x): x is string => typeof x === "string") : [];
+  const faqs = Array.isArray(page.faq_json) ? page.faq_json as { q: string; a: string }[] : [];
+  const seo = knowledgeMetadata(page);
 
   return (
     <div className="min-h-dvh bg-background">
-      <SEOHead
-        title={page.meta_title || page.title}
-        description={page.meta_description || page.summary || page.title}
-        canonicalUrl={url}
-        ogType="article"
-        breadcrumbs={[{ name: "Hjem", url: BASE }, { name: "Kunnskap", url: `${BASE}/knowledge` }, { name: page.title, url }]}
-        faqSchema={page.schema_json}
-      />
+      <SEOHead {...seo} />
       <Navigation />
       <main className="max-w-[1200px] mx-auto px-4 py-10">
         <div className="max-w-3xl">

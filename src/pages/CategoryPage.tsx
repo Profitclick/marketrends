@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { CATEGORY_MAP, loadCategoryRouteData, type CategoryArticle } from "@/lib/routeData";
+import { categoryMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { NewsFooter } from "@/components/NewsFooter";
 import { MarketTicker } from "@/components/MarketTicker";
@@ -15,61 +17,9 @@ import { resolveArticleImages } from "@/utils/articleImages";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 
-interface Article {
-  id: string;
-  title: string;
-  slug: string;
-  category: string;
-  meta_description: string | null;
-  image_url: string | null;
-  created_at: string;
-  article_type: string | null;
-  tags: string[] | null;
-}
-
-const SITE_URL = "https://marketrends.no";
-
-const CATEGORY_MAP: Record<string, { name: string; description: string; keywords: string }> = {
-  "krypto-trading": {
-    name: "Krypto & Trading",
-    description: "Siste nytt om kryptovaluta, Bitcoin, Ethereum, trading og DeFi. Norske perspektiver på det globale kryptomarkedet.",
-    keywords: "krypto, bitcoin, ethereum, trading, kryptovaluta, DeFi, blockchain"
-  },
-  "teknologi-ai": {
-    name: "Teknologi & AI",
-    description: "Nyheter om kunstig intelligens, teknologi, SaaS og digital transformasjon. AI-verktøy og tech-innovasjon.",
-    keywords: "teknologi, AI, kunstig intelligens, SaaS, tech, software, innovasjon"
-  },
-  "finans-marked": {
-    name: "Finans & Marked",
-    description: "Fintech-nyheter, bankinnovasjon, investering og markedsanalyse. Oslo Børs og norsk økonomi.",
-    keywords: "finans, fintech, bank, investering, Oslo Børs, marked, økonomi"
-  },
-  "grunder-startups": {
-    name: "Gründer & Startups",
-    description: "Inspirerende gründerhistorier, startup-nyheter og venture capital. Norsk innovasjon og entrepreneurskap.",
-    keywords: "gründer, startup, venture, innovasjon, entreprenør, oppstart"
-  },
-  "penger-karriere": {
-    name: "Penger & Karriere",
-    description: "Personlig økonomi, karrieretips og jobbmarked. Slik tjener du mer og bygger din karriere.",
-    keywords: "penger, karriere, lønn, jobb, personlig økonomi, sparing"
-  },
-  "trender-analyse": {
-    name: "Trender & Analyse",
-    description: "Dyptgående markedsanalyser, trender og data. Forstå hva som driver markedene.",
-    keywords: "trender, analyse, marked, data, innsikt, research"
-  },
-  "guider-forklart": {
-    name: "Guider & Forklart",
-    description: "Praktiske guider og forklaringer. Lær hvordan du navigerer finans, krypto og tech.",
-    keywords: "guide, hvordan, forklart, veiledning, tips, råd"
-  }
-};
-
 export default function CategoryPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<CategoryArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFallback, setIsFallback] = useState(false);
 
@@ -78,41 +28,33 @@ export default function CategoryPage() {
   const articleImages = useMemo(() => resolveArticleImages(articles), [articles]);
 
   useEffect(() => {
-    const fetchArticles = async () => {
-      if (!categoryInfo) {
-        setLoading(false);
-        return;
-      }
+    let cancelled = false;
+    setLoading(true);
 
-      const { data, error } = await supabase
-        .from("articles")
-        .select("id, title, slug, category, meta_description, image_url, created_at, article_type, tags")
-        .eq("published", true)
-        .eq("category", categoryInfo.name)
-        .order("created_at", { ascending: false })
-        .limit(24);
-
-      if (!error && data && data.length > 0) {
-        setArticles(data);
-        setIsFallback(false);
-      } else {
-        const { data: fallbackData } = await supabase
-          .from("articles")
-          .select("id, title, slug, category, meta_description, image_url, created_at, article_type, tags")
-          .eq("published", true)
-          .order("created_at", { ascending: false })
-          .limit(24);
-
-        if (fallbackData) {
-          setArticles(fallbackData);
-          setIsFallback(true);
+    loadCategoryRouteData(supabase, slug)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.status === "found") {
+          setArticles(result.data.articles);
+          setIsFallback(result.data.isFallback);
+        } else {
+          setArticles([]);
+          setIsFallback(false);
         }
-      }
-      setLoading(false);
-    };
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Error loading category route:", error);
+          setArticles([]);
+          setIsFallback(false);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-    fetchArticles();
-  }, [slug, categoryInfo]);
+    return () => { cancelled = true; };
+  }, [slug]);
 
   const heroArticle = articles[0];
   const sideArticles = articles.slice(1, 5);
@@ -133,22 +75,11 @@ export default function CategoryPage() {
     );
   }
 
-  const canonicalUrl = `${SITE_URL}/kategori/${slug}`;
-  const breadcrumbs = [
-    { name: "Hjem", url: SITE_URL },
-    { name: categoryName, url: canonicalUrl }
-  ];
+  const seo = categoryMetadata(slug!, categoryInfo);
 
   return (
     <div className="min-h-dvh bg-background">
-      <SEOHead
-        title={`${categoryName} - Norsk nyhetsportal`}
-        description={categoryInfo.description}
-        canonicalUrl={canonicalUrl}
-        ogType="website"
-        tags={categoryInfo.keywords.split(", ")}
-        breadcrumbs={breadcrumbs}
-      />
+      <SEOHead {...seo} />
 
       <MarketTicker />
       <Navigation />

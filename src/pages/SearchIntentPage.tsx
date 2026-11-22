@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  loadSearchIntentRouteData,
+  type SearchIntentRouteIntent,
+  type SearchIntentRoutePillar,
+} from "@/lib/routeData";
+import { INTENT_LABEL, searchIntentMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { NewsFooter } from "@/components/NewsFooter";
 import { SEOHead } from "@/components/SEOHead";
@@ -11,37 +17,38 @@ import { GeoBlocks } from "@/components/GeoBlocks";
 import { PillarNav } from "@/components/PillarNav";
 import { Home, ChevronRight } from "lucide-react";
 
-const BASE = "https://marketrends.no";
-
-const INTENT_LABEL: Record<string, string> = {
-  informational: "Kunnskap",
-  commercial: "Vurdering",
-  transactional: "Guide",
-  comparison: "Sammenligning",
-};
-
 export default function SearchIntentPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [intent, setIntent] = useState<any>(null);
-  const [pillar, setPillar] = useState<any>(null);
+  const [intent, setIntent] = useState<SearchIntentRouteIntent | null>(null);
+  const [pillar, setPillar] = useState<SearchIntentRoutePillar | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!slug) return;
+    let cancelled = false;
     setLoading(true);
-    (async () => {
-      const { data } = await supabase.from("search_intents").select("*")
-        .eq("target_slug", slug).maybeSingle();
-      setIntent(data);
-      setPillar(null);
-      if (data && !data.is_pillar && data.pillar_intent_id) {
-        const { data: p } = await supabase.from("search_intents")
-          .select("keyword, target_slug, content_status")
-          .eq("id", data.pillar_intent_id).maybeSingle();
-        if (p?.content_status === "published") setPillar(p);
-      }
-      setLoading(false);
-    })();
+    setIntent(null);
+    setPillar(null);
+
+    loadSearchIntentRouteData(supabase, slug)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.status === "found") {
+          setIntent(result.data.intent);
+          setPillar(result.data.pillar);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Error loading search intent route:", error);
+          setIntent(null);
+          setPillar(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [slug]);
 
 
@@ -50,24 +57,12 @@ export default function SearchIntentPage() {
 
   const meta = intent.meta || {};
   const geo = intent.geo_blocks || {};
-  const url = `${BASE}/intent/${intent.target_slug}`;
   const title = meta.title || intent.keyword;
+  const seo = searchIntentMetadata(intent, pillar);
 
   return (
     <div className="min-h-dvh bg-background">
-      <SEOHead
-        title={meta.meta_title || title}
-        description={meta.meta_description || meta.summary || title}
-        canonicalUrl={url}
-        ogType="article"
-        breadcrumbs={[
-          { name: "Hjem", url: BASE },
-          { name: INTENT_LABEL[intent.intent_type] || "Intent", url: `${BASE}/intent` },
-          ...(pillar?.target_slug ? [{ name: pillar.keyword, url: `${BASE}/intent/${pillar.target_slug}` }] : []),
-          { name: title, url },
-        ]}
-        faqSchema={meta.faq_schema}
-      />
+      <SEOHead {...seo} />
       <Navigation />
       <main className="max-w-[1200px] mx-auto px-4 py-10">
         <div className="max-w-3xl">

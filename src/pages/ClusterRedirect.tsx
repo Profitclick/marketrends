@@ -1,11 +1,11 @@
 import { Navigate, useParams } from "react-router-dom";
-import { getCluster } from "@/config/clusters";
+import { resolveLegacyClusterRoute } from "@/lib/routeResolution";
 import NotFound from "./NotFound";
 
 /** Legacy /cluster/:slug → canonical short vertical URL (one hop). */
 export const clusterRedirectTarget = (slug?: string) => {
-  const c = slug ? getCluster(slug) : null;
-  return c?.vertical ?? null;
+  const outcome = resolveLegacyClusterRoute(slug);
+  return outcome.status === "redirect" ? outcome.to : null;
 };
 
 const ClusterRedirect = () => {

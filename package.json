@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "bun test scripts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:artifacts": "node scripts/build-public-artifacts.mjs dist"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

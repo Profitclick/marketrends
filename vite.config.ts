@@ -2,32 +2,18 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
-import { generateSitemaps } from "./scripts/generate-sitemaps.mjs";
-import { prerender } from "./scripts/prerender.mjs";
-import { generate404 } from "./scripts/generate-404.mjs";
-import { generatePrivateRoutes } from "./scripts/private-routes.mjs";
+import { buildPublicArtifacts } from "./scripts/build-public-artifacts.mjs";
 
-// Public sitemaps are generated into the build output so they are served from https://marketrends.no.
-const sitemapPlugin = (env: Record<string, string>) => ({
-  name: "marketrends-sitemaps",
+// Public artifacts remain generated after the client bundle, but the deterministic
+// pipeline itself is framework-independent and can later be reused by TanStack Start.
+const publicArtifactsPlugin = (env: Record<string, string>) => ({
+  name: "marketrends-public-artifacts",
   apply: "build" as const,
   async closeBundle() {
-    try {
-      const r = await generateSitemaps(path.resolve(__dirname, "dist"), env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
-      console.log(`[sitemaps] ${r.files.length} files, ${r.articles} articles, ${r.news} news`);
-    } catch (e) {
-      console.warn("[sitemaps] generation failed:", (e as Error).message);
-    }
-    // Private entry documents contain only the application shell and noindex,nofollow metadata.
-    // They are generated before public prerendering so no homepage markup can leak into them.
-    const privateFiles = generatePrivateRoutes(path.resolve(__dirname, "dist"));
-    console.log(`[private-routes] ${privateFiles.length} noindex shells`);
-    // Route-specific static HTML for every ordinary-sitemap route. Fails the build on any failure or parity gap
-    // so a wrong homepage fallback canonical is never shipped for an expected SEO route.
-    const p = await prerender(path.resolve(__dirname, "dist"), env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
-    console.log(`[prerender] ${p.written} routes, ${p.articles} articles; sitemap ${p.sitemap}, missing ${p.missing}, unexpected ${p.unexpected}`);
-    const notFound = generate404(path.resolve(__dirname, "dist"));
-    console.log(`[404] generated ${notFound}`);
+    await buildPublicArtifacts(path.resolve(__dirname, "dist"), {
+      supabaseUrl: env.VITE_SUPABASE_URL,
+      supabasePublishableKey: env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    });
   },
 });
 
@@ -36,7 +22,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     server: { host: "::", port: 8080 },
-    plugins: [react(), mode === "development" && componentTagger(), sitemapPlugin(env)].filter(Boolean),
+    plugins: [react(), mode === "development" && componentTagger(), publicArtifactsPlugin(env)].filter(Boolean),
     resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
   };
 });

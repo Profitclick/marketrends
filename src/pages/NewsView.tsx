@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { loadNewsRouteData, type RouteArticle } from "@/lib/routeData";
+import { homepageMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { MarketTicker } from "@/components/MarketTicker";
 import { HeroSection } from "@/components/HeroSection";
@@ -22,28 +24,6 @@ import { RecommendedForYou } from "@/components/RecommendedForYou";
 import { SEOHead } from "@/components/SEOHead";
 import { Skeleton } from "@/components/ui/skeleton";
 import NotFound from "./NotFound";
-
-interface Article {
-  id: string;
-  title: string;
-  slug: string;
-  content: string;
-  source_name: string;
-  source_url: string;
-  category: string;
-  tags: string[];
-  meta_description: string | null;
-  image_url: string | null;
-  created_at: string;
-  published: boolean;
-  is_affiliate?: boolean;
-  risk_warning?: string | null;
-  archived_sources?: string[] | null;
-  article_type?: string | null;
-  affiliate_partners?: { name: string } | null;
-}
-
-const BASE_URL = "https://marketrends.no";
 
 const ArticleSkeleton = () => (
   <div className="max-w-[1200px] mx-auto px-4 py-10">
@@ -78,66 +58,49 @@ const HomepageSkeleton = () => (
 
 const NewsView = () => {
   const { slug } = useParams();
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [articles, setArticles] = useState<RouteArticle[]>([]);
+  const [selectedArticle, setSelectedArticle] = useState<RouteArticle | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchArticles = async () => {
-    try {
-      if (slug) {
-        const { data: articleData, error: articleError } = await supabase
-          .from("articles")
-          .select(`*, affiliate_partners(name)`)
-          .eq("published", true)
-          .eq("slug", slug)
-          .maybeSingle();
-
-        if (articleError) throw articleError;
-        if (articleData) {
-          setSelectedArticle({
-            ...articleData,
-            archived_sources: articleData.archived_sources as string[] | null,
-          });
-        }
-      }
-
-      const { data, error } = await supabase
-        .from("articles")
-        .select(
-          `id, title, slug, source_name, source_url, category, tags, meta_description, image_url, created_at, published, is_affiliate, risk_warning, article_type, affiliate_partners(name)`
-        )
-        .eq("published", true)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      const fetchedArticles = (data || []).map((article) => ({
-        ...article,
-        content: "",
-        archived_sources: null as string[] | null,
-      }));
-      setArticles(fetchedArticles);
-    } catch (error) {
-      console.error("Error fetching articles:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchArticles();
+    let cancelled = false;
+    setLoading(true);
+    setSelectedArticle(null);
+
+    loadNewsRouteData(supabase, slug)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.status === "found") {
+          setArticles(result.data.articles);
+          setSelectedArticle(result.data.selectedArticle);
+        } else {
+          setArticles([]);
+          setSelectedArticle(null);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Error loading news route:", error);
+          setArticles([]);
+          setSelectedArticle(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [slug]);
 
   useEffect(() => {
     const channel = supabase
       .channel("articles-realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "articles", filter: "published=eq.true" }, (payload) => {
-        const newArticle = { ...payload.new, archived_sources: payload.new.archived_sources as string[] | null, affiliate_partners: null } as Article;
+        const newArticle = { ...payload.new, archived_sources: payload.new.archived_sources as string[] | null, affiliate_partners: null } as RouteArticle;
         setArticles((prev) => [newArticle, ...prev]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "articles" }, (payload) => {
-        const updatedArticle = { ...payload.new, archived_sources: payload.new.archived_sources as string[] | null, affiliate_partners: null } as Article;
+        const updatedArticle = { ...payload.new, archived_sources: payload.new.archived_sources as string[] | null, affiliate_partners: null } as RouteArticle;
         if (updatedArticle.published) {
           setArticles((prev) => {
             const exists = prev.some((a) => a.id === updatedArticle.id);
@@ -159,7 +122,7 @@ const NewsView = () => {
     if (!acc[article.category]) acc[article.category] = [];
     acc[article.category].push(article);
     return acc;
-  }, {} as Record<string, Article[]>);
+  }, {} as Record<string, RouteArticle[]>);
 
   if (loading) {
     return (
@@ -214,12 +177,7 @@ const NewsView = () => {
   return (
     <div className="min-h-dvh bg-background flex flex-col">
       <a href="#main-content" className="skip-link">Hopp til hovedinnhold</a>
-      <SEOHead
-        title="Norsk Fintech, Krypto & Markedsnyheter"
-        description="Norges ledende kilde for markedstrender, fintech, krypto, AI og startup-nyheter. Oppdatert døgnet rundt med de siste nyhetene innen teknologi og finans."
-        canonicalUrl={BASE_URL}
-        ogType="website"
-      />
+      <SEOHead {...homepageMetadata()} />
 
       <MarketTicker />
       <Navigation />

@@ -1,32 +1,57 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { loadCompareRouteData, type CompareRoutePage } from "@/lib/routeData";
+import { compareMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { NewsFooter } from "@/components/NewsFooter";
 import { SEOHead } from "@/components/SEOHead";
 import { ArticleContent } from "@/components/ArticleContent";
 import { Home, ChevronRight, Check, X } from "lucide-react";
 
-const BASE = "https://marketrends.no";
-
 export default function ComparePage() {
   const { slug } = useParams<{ slug: string }>();
-  const [page, setPage] = useState<any>(null);
+  const [page, setPage] = useState<CompareRoutePage | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!slug) return;
+    let cancelled = false;
     setLoading(true);
-    supabase.from("comparison_pages").select("*").eq("slug", slug).maybeSingle()
-      .then(({ data }) => { setPage(data); setLoading(false); });
+    setPage(null);
+
+    loadCompareRouteData(supabase, slug)
+      .then((result) => {
+        if (!cancelled) setPage(result.status === "found" ? result.data : null);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Error loading comparison route:", error);
+          setPage(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [slug]);
 
   if (loading) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10 text-muted-foreground">Laster…</div></div>;
   if (!page) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10">Siden finnes ikke.</div></div>;
 
-  const url = `${BASE}/compare/${page.slug}`;
-  const pc = page.pros_cons_json || {};
-  const faqs: { q: string; a: string }[] = page.faq_json || [];
+  const rawProsCons = page.pros_cons_json && typeof page.pros_cons_json === "object"
+    ? page.pros_cons_json as Record<string, unknown>
+    : {};
+  const strings = (value: unknown) =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  const pc = {
+    a_pros: strings(rawProsCons.a_pros),
+    a_cons: strings(rawProsCons.a_cons),
+    b_pros: strings(rawProsCons.b_pros),
+    b_cons: strings(rawProsCons.b_cons),
+  };
+  const faqs = Array.isArray(page.faq_json) ? page.faq_json as { q: string; a: string }[] : [];
+  const seo = compareMetadata(page);
 
   const Col = ({ name, pros, cons }: { name: string; pros: string[]; cons: string[] }) => (
     <div>
@@ -44,14 +69,7 @@ export default function ComparePage() {
 
   return (
     <div className="min-h-dvh bg-background">
-      <SEOHead
-        title={page.meta_title || page.title}
-        description={page.meta_description || page.summary || page.title}
-        canonicalUrl={url}
-        ogType="article"
-        breadcrumbs={[{ name: "Hjem", url: BASE }, { name: "Sammenligninger", url: `${BASE}/compare` }, { name: page.title, url }]}
-        faqSchema={page.schema_json}
-      />
+      <SEOHead {...seo} />
       <Navigation />
       <main className="max-w-[1200px] mx-auto px-4 py-10">
         <div className="max-w-3xl">

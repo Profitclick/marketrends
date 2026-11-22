@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { supabase } from "@/integrations/supabase/client";
+import { loadEntityRouteData, type EntityRouteEntity } from "@/lib/routeData";
+import { entityMetadata } from "@/lib/routeMetadata";
 import { SEOHead } from "@/components/SEOHead";
 import { Navigation } from "@/components/Navigation";
 import { NewsFooter } from "@/components/NewsFooter";
@@ -12,67 +14,34 @@ import { ContextualLinks } from "@/components/ContextualLinks";
 import { TrendingUp, Activity, Clock } from "lucide-react";
 import { relativeTimeNo } from "@/lib/freshness";
 
-interface Entity {
-  id: string;
-  slug: string;
-  name: string;
-  type: string;
-  description: string | null;
-  summary: string | null;
-  key_facts: any;
-  faqs: any;
-  what_happened: string | null;
-  why_it_matters: string | null;
-  meta_title: string | null;
-  meta_description: string | null;
-  og_image: string | null;
-  aliases: string[];
-  mention_count: number;
-  mentions_last_24h: number;
-  mentions_last_7d: number;
-  mentions_last_30d: number;
-  momentum_score: number;
-  trending_score: number;
-  last_mention_at: string | null;
-  wikidata_id: string | null;
-}
-
 const typeLabel: Record<string, string> = {
   company: "Selskap", person: "Person", product: "Produkt",
   location: "Sted", organization: "Organisasjon", technology: "Teknologi",
   cryptocurrency: "Kryptovaluta", asset: "Eiendel", government: "Myndighet",
 };
 
-const schemaType: Record<string, string> = {
-  person: "Person",
-  company: "Organization",
-  organization: "Organization",
-  government: "GovernmentOrganization",
-  product: "Product",
-  location: "Place",
-  technology: "Thing",
-  cryptocurrency: "Thing",
-  asset: "Thing",
-};
-
-const SITE_URL = "https://marketrends.no";
-
 const TopicPageInner = ({ slug }: { slug: string }) => {
-  const [entity, setEntity] = useState<Entity | null>(null);
+  const [entity, setEntity] = useState<EntityRouteEntity | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("entities")
-        .select("*")
-        .eq("slug", slug)
-        .maybeSingle();
-      if (cancelled) return;
-      if (!data) setNotFound(true);
-      else setEntity(data as any);
-    })();
+    setNotFound(false);
+    setEntity(null);
+
+    loadEntityRouteData(supabase, slug)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.status === "found") setEntity(result.data.entity);
+        else setNotFound(true);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Error loading entity route:", error);
+          setNotFound(true);
+        }
+      });
+
     return () => { cancelled = true; };
   }, [slug]);
 
@@ -105,58 +74,13 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
     );
   }
 
-  const canonical = `${SITE_URL}/entity/${entity.slug}`;
-  const title = entity.meta_title || `${entity.name} – Nyheter, analyse og kontekst`;
-  const description =
-    entity.meta_description ||
-    entity.summary ||
-    entity.description ||
-    `Følg ${entity.name} på Marketrends. Nyheter, analyse og redaksjonell kontekst om ${entity.name}.`;
-
-  const facts: string[] = Array.isArray(entity.key_facts) ? entity.key_facts : [];
-  const faqs: { q: string; a: string }[] = Array.isArray(entity.faqs) ? entity.faqs : [];
-
-  // JSON-LD
-  const entityJsonLd = {
-    "@context": "https://schema.org",
-    "@type": schemaType[entity.type] || "Thing",
-    name: entity.name,
-    alternateName: entity.aliases || [],
-    description,
-    url: canonical,
-    ...(entity.wikidata_id && { sameAs: [`https://www.wikidata.org/wiki/${entity.wikidata_id}`] }),
-    ...(entity.og_image && { image: entity.og_image }),
-  };
-
-  const faqJsonLd = faqs.length
-    ? {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        mainEntity: faqs.map((f) => ({
-          "@type": "Question",
-          name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
-        })),
-      }
-    : null;
+  const { seo, entitySchema, facts, faqs } = entityMetadata(entity);
 
   return (
     <div className="min-h-dvh bg-background">
-      <SEOHead
-        title={title}
-        description={description}
-        canonicalUrl={canonical}
-        ogImage={entity.og_image || undefined}
-        ogType="website"
-        breadcrumbs={[
-          { name: "Forsiden", url: SITE_URL },
-          { name: "Aktører", url: `${SITE_URL}/entity` },
-          { name: entity.name, url: canonical },
-        ]}
-        faqSchema={faqJsonLd || undefined}
-      />
+      <SEOHead {...seo} />
       <Helmet>
-        <script type="application/ld+json">{JSON.stringify(entityJsonLd)}</script>
+        <script type="application/ld+json">{JSON.stringify(entitySchema)}</script>
       </Helmet>
 
       <Navigation />
