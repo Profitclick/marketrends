@@ -99,6 +99,13 @@
       "when": 1794167126592,
       "tag": "0013_restrict_internal_definer_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795338541633,
+      "tag": "0014_tighten_open_policies",
+      "breakpoints": true
     }
   ]
 }
