@@ -5,8 +5,10 @@ const read = (path: string) => fs.readFileSync(path, "utf8");
 
 test("article topic rewrites refresh affected topic stats", () => {
   const source = read("supabase/functions/enrich-article/index.ts");
-  expect(source).toContain('from("article_topics").delete()');
-  expect(source).toContain("refreshTopicStats(supabase, [...affectedTopicIds])");
+  const del = source.search(/\.from\(\s*["']article_topics["']\s*\)\s*\.delete\(\s*\)/);
+  expect(del).toBeGreaterThan(-1);
+  const refresh = source.indexOf("refreshTopicStats(supabase, [...affectedTopicIds])", del);
+  expect(refresh).toBeGreaterThan(del);
 });
 
 test("admin publish and delete paths invoke bounded topic refresh", () => {

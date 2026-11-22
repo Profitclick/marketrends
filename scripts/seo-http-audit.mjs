@@ -1,20 +1,26 @@
 // Read-only production smoke check. No credentials, mutations, AI or GSC decisions.
 import fs from 'node:fs';
 
-const ORIGIN = 'https://marketrends.no';
+const ORIGIN = 'https://marketrends.no'; // canonical truth, always production
+const AUDIT = (process.env.MARKETRENDS_AUDIT_ORIGIN || ORIGIN).replace(/\/+$/, '');
 const NEWS = 'https://news-sitemap.marketrends.no/sitemap-news.xml';
+const S = '__seo_nonexistent_20261122';
+const missing = ['kategori', 'topic', 'entity', 'guide', 'knowledge', 'compare', 'intent', 'cluster']
+  .map((p) => ({ id: `unknown_${p}`, url: `${AUDIT}/${p}/${S}`, kind: 'not_found' }));
 const routes = [
-  { id: 'homepage', url: `${ORIGIN}/`, kind: 'homepage' },
-  { id: 'admin', url: `${ORIGIN}/admin`, kind: 'private' },
-  { id: 'auth', url: `${ORIGIN}/auth`, kind: 'private' },
-  { id: 'dashboard', url: `${ORIGIN}/dashboard`, kind: 'private' },
-  { id: 'unknown', url: `${ORIGIN}/__seo_nonexistent_route_20261113`, kind: 'not_found' },
-  { id: 'unknown_cluster', url: `${ORIGIN}/cluster/__seo_nonexistent_20261113`, kind: 'not_found' },
-  { id: 'legacy_cluster', url: `${ORIGIN}/cluster/ai`, kind: 'redirect', target: `${ORIGIN}/ai` },
-  { id: 'sitemap_index', url: `${ORIGIN}/sitemap-index.xml`, kind: 'sitemap_index' },
+  { id: 'homepage', url: `${AUDIT}/`, kind: 'homepage' },
+  { id: 'admin', url: `${AUDIT}/admin`, kind: 'private' },
+  { id: 'auth', url: `${AUDIT}/auth`, kind: 'private' },
+  { id: 'dashboard', url: `${AUDIT}/dashboard`, kind: 'private' },
+  { id: 'unknown', url: `${AUDIT}/${S}`, kind: 'not_found' },
+  ...missing,
+  { id: 'legacy_cluster', url: `${AUDIT}/cluster/ai`, kind: 'redirect', target: `${AUDIT}/ai` },
+  { id: 'unknown_ressurser', url: `${AUDIT}/ressurser/${S}`, kind: 'not_found', advisory: true },
+  { id: 'sitemap_index', url: `${AUDIT}/sitemap-index.xml`, kind: 'sitemap_index' },
   { id: 'worker_news', url: NEWS, kind: 'news_worker' },
-  { id: 'legacy_news', url: `${ORIGIN}/sitemap-news.xml`, kind: 'news_legacy' },
+  { id: 'legacy_news', url: `${AUDIT}/sitemap-news.xml`, kind: 'news_legacy', advisory: true },
 ];
+const BAD_CANON = /lovable\.app|lovableproject\.com|workers\.dev|supabase\.co/i;
 
 function getAttr(tag, attr) {
   const match = tag.match(new RegExp(`(?:^|\\s)${attr}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
@@ -42,6 +48,7 @@ function evaluate(route, status, location, contentType, body) {
   const actualCanonical = canonical(body);
   const xml = /(?:application|text)\/xml|\+xml/i.test(contentType ?? '');
   const expect = (condition, message) => { if (!condition) issues.push(message); };
+  if (actualCanonical) expect(!BAD_CANON.test(actualCanonical) && actualCanonical.startsWith(`${ORIGIN}/`), 'Canonical must use https://marketrends.no');
   switch (route.kind) {
     case 'homepage':
       expect(status === 200, 'Homepage must serve HTTP 200');
@@ -79,8 +86,8 @@ function evaluate(route, status, location, contentType, body) {
   return { issues, robots, googlebot, canonical: actualCanonical };
 }
 
-const results = [];
-for (const route of routes) {
+async function probe(route) {
+  const advisory = Boolean(route.advisory);
   try {
     const response = await fetch(route.url, {
       redirect: 'manual',
@@ -91,15 +98,16 @@ for (const route of routes) {
     const location = response.headers.get('location');
     const contentType = response.headers.get('content-type');
     const check = evaluate(route, response.status, location, contentType, body);
-    results.push({ id: route.id, url: route.url, status: response.status, location, contentType, ...check, passed: check.issues.length === 0, advisory: route.kind === 'news_legacy', workerSource: route.kind === 'news_worker' ? response.headers.get('x-marketrends-sitemap-source') : null, workerNewsCount: route.kind === 'news_worker' ? response.headers.get('x-marketrends-news-count') : null });
+    return { id: route.id, url: route.url, status: response.status, location, contentType, ...check, passed: check.issues.length === 0, advisory, workerSource: route.kind === 'news_worker' ? response.headers.get('x-marketrends-sitemap-source') : null, workerNewsCount: route.kind === 'news_worker' ? response.headers.get('x-marketrends-news-count') : null };
   } catch (error) {
-    results.push({ id: route.id, url: route.url, passed: false, advisory: false, issues: [`Fetch failed: ${error.message}`] });
+    return { id: route.id, url: route.url, passed: false, advisory, issues: [`Fetch failed: ${error.message}`] };
   }
 }
+const results = await Promise.all(routes.map(probe));
 
 const timestamp = new Date().toISOString();
 const failures = results.filter((result) => !result.passed && !result.advisory);
-const data = { timestamp, origin: ORIGIN, mode: 'read-only', failures: failures.length, checks: results };
+const data = { timestamp, origin: ORIGIN, auditOrigin: AUDIT, mode: 'read-only', failures: failures.length, checks: results };
 fs.mkdirSync('seo-audit', { recursive: true });
 fs.writeFileSync('seo-audit/http-audit.json', `${JSON.stringify(data, null, 2)}\n`);
 const lines = [
