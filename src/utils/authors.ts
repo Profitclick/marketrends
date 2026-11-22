@@ -42,6 +42,26 @@ export const getRandomAuthor = (): Author => {
   return journalistAuthors[Math.floor(Math.random() * journalistAuthors.length)];
 };
 
+const stableAuthorIndex = (stableKey: string, count: number): number => {
+  let hash = 2166136261;
+  for (let i = 0; i < stableKey.length; i += 1) {
+    hash ^= stableKey.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % count;
+};
+
+/**
+ * Deterministic author selection for SSR/hydration parity.
+ *
+ * This is intentionally additive for PREP-03; current client rendering keeps
+ * its existing behavior until the framework migration explicitly adopts it.
+ */
+export const getAuthorForArticle = (stableKey: string): Author => {
+  const journalistAuthors = authors.filter((author) => author.role !== "Ansvarlig redaktør");
+  return journalistAuthors[stableAuthorIndex(stableKey, journalistAuthors.length)];
+};
+
 export const getEditorInChief = (): Author => {
   return authors.find(a => a.role === "Ansvarlig redaktør")!;
 };

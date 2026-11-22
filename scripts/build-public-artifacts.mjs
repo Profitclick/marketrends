@@ -12,6 +12,42 @@ import { generatePrivateRoutes } from "./private-routes.mjs";
  * invoke the same deterministic sitemap/private/prerender/404 sequence without
  * coupling the policy to a Vite lifecycle hook.
  */
+export async function buildSitemapArtifacts(
+  outDir,
+  {
+    supabaseUrl,
+    supabasePublishableKey,
+    logger = console,
+    failOnError = true,
+  } = {},
+) {
+  const resolvedOutDir = path.resolve(outDir);
+
+  try {
+    const sitemapResult = await generateSitemaps(
+      resolvedOutDir,
+      supabaseUrl,
+      supabasePublishableKey,
+    );
+    logger.log(
+      `[sitemaps] ${sitemapResult.files.length} files, ${sitemapResult.articles} articles, ${sitemapResult.news} news`,
+    );
+    return sitemapResult;
+  } catch (error) {
+    if (failOnError) throw error;
+    logger.warn("[sitemaps] generation failed:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+/**
+ * Current SPA artifact build.
+ *
+ * The legacy private shells, physical prerender files and static 404 remain in
+ * place until the TanStack Start migration replaces those responsibilities
+ * with server routes. The sitemap step is independently reusable through
+ * buildSitemapArtifacts().
+ */
 export async function buildPublicArtifacts(
   outDir,
   {
@@ -21,22 +57,14 @@ export async function buildPublicArtifacts(
   } = {},
 ) {
   const resolvedOutDir = path.resolve(outDir);
-  let sitemapResult = null;
-
-  try {
-    sitemapResult = await generateSitemaps(
-      resolvedOutDir,
-      supabaseUrl,
-      supabasePublishableKey,
-    );
-    logger.log(
-      `[sitemaps] ${sitemapResult.files.length} files, ${sitemapResult.articles} articles, ${sitemapResult.news} news`,
-    );
-  } catch (error) {
-    // Preserve current production build semantics: sitemap generation is
-    // observed here, while prerender/parity remains the fail-closed gate.
-    logger.warn("[sitemaps] generation failed:", error instanceof Error ? error.message : String(error));
-  }
+  const sitemapResult = await buildSitemapArtifacts(resolvedOutDir, {
+    supabaseUrl,
+    supabasePublishableKey,
+    logger,
+    // Preserve current SPA behavior: prerender/parity remains the fail-closed
+    // gate when sitemap generation itself fails.
+    failOnError: false,
+  });
 
   const privateFiles = generatePrivateRoutes(resolvedOutDir);
   logger.log(`[private-routes] ${privateFiles.length} noindex shells`);
@@ -64,8 +92,13 @@ export async function buildPublicArtifacts(
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 if (invokedPath === import.meta.url) {
   const outDir = process.argv[2] || "dist";
-  await buildPublicArtifacts(outDir, {
+  const options = {
     supabaseUrl: process.env.VITE_SUPABASE_URL,
     supabasePublishableKey: process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  });
+  };
+  if (process.argv.includes("--sitemaps-only")) {
+    await buildSitemapArtifacts(outDir, { ...options, failOnError: true });
+  } else {
+    await buildPublicArtifacts(outDir, options);
+  }
 }

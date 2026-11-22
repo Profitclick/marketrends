@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { routeFound, routeNotFound, type RouteResolution } from "@/lib/routeResolution";
+import { getCluster, type ClusterConfig } from "@/config/clusters";
 
 export type MarketrendsDataClient = SupabaseClient<Database>;
 
@@ -16,6 +17,7 @@ export interface RouteArticle {
   meta_description: string | null;
   image_url: string | null;
   created_at: string;
+  updated_at?: string | null;
   published: boolean;
   is_affiliate?: boolean;
   risk_warning?: string | null;
@@ -164,6 +166,47 @@ export interface CategoryRouteData {
 
 export interface EntityRouteData {
   entity: EntityRouteEntity;
+}
+
+
+type ArticleRow = Database["public"]["Tables"]["articles"]["Row"];
+type TopicRow = Database["public"]["Tables"]["topics"]["Row"];
+type EntityRow = Database["public"]["Tables"]["entities"]["Row"];
+type GuideRow = Database["public"]["Tables"]["guides"]["Row"];
+type KnowledgeRow = Database["public"]["Tables"]["knowledge_pages"]["Row"];
+type ComparisonRow = Database["public"]["Tables"]["comparison_pages"]["Row"];
+type ClusterStatsRow = Database["public"]["Tables"]["cluster_stats"]["Row"];
+
+export type ClusterRouteArticle = ArticleRow & {
+  article_clusters: { cluster_slug: string }[];
+};
+
+export type ClusterRouteTopic = Pick<
+  TopicRow,
+  "id" | "name" | "slug" | "authority_score" | "trending_score" | "article_count"
+>;
+
+export type ClusterRouteEntity = Pick<
+  EntityRow,
+  "id" | "name" | "slug" | "authority_score" | "mention_count"
+>;
+
+export type ClusterRouteGuide = Pick<GuideRow, "slug" | "title" | "summary">;
+export type ClusterRouteKnowledge = Pick<KnowledgeRow, "slug" | "title" | "summary" | "topic_id" | "entity_id">;
+export type ClusterRouteComparison = Pick<
+  ComparisonRow,
+  "slug" | "title" | "summary" | "entity_a_id" | "entity_b_id"
+>;
+
+export interface ClusterRouteData {
+  cluster: ClusterConfig;
+  stats: ClusterStatsRow | null;
+  articles: ClusterRouteArticle[];
+  topics: ClusterRouteTopic[];
+  entities: ClusterRouteEntity[];
+  guides: ClusterRouteGuide[];
+  knowledge: ClusterRouteKnowledge[];
+  comparisons: ClusterRouteComparison[];
 }
 
 const latestArticleSelect =
@@ -458,6 +501,128 @@ export async function loadCompareRouteData(
   return data ? routeFound(data as unknown as CompareRoutePage) : routeNotFound();
 }
 
+
+
+export async function loadClusterRouteData(
+  client: MarketrendsDataClient,
+  slug?: string,
+): Promise<RouteResolution<ClusterRouteData>> {
+  const cluster = slug ? getCluster(slug) : undefined;
+  if (!cluster) return routeNotFound();
+
+  const [definitionResult, seedsResult] = await Promise.all([
+    client
+      .from("cluster_definitions")
+      .select("guide_categories")
+      .eq("slug", cluster.slug)
+      .maybeSingle(),
+    client
+      .from("cluster_seed_nodes")
+      .select("node_type, node_id")
+      .eq("cluster_slug", cluster.slug)
+      .limit(2000),
+  ]);
+
+  if (definitionResult.error) throw definitionResult.error;
+  if (seedsResult.error) throw seedsResult.error;
+
+  const guideCategories = definitionResult.data?.guide_categories || [];
+  const seeds = seedsResult.data || [];
+  const seedEntityIds = seeds
+    .filter((seed) => seed.node_type === "entity")
+    .map((seed) => seed.node_id);
+  const seedTopicIds = seeds
+    .filter((seed) => seed.node_type === "topic")
+    .map((seed) => seed.node_id);
+
+  const articlesPromise = client
+    .from("articles")
+    .select("*, article_clusters!inner(cluster_slug)")
+    .eq("article_clusters.cluster_slug", cluster.slug)
+    .eq("published", true)
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  const topicsPromise = seedTopicIds.length
+    ? client
+        .from("topics")
+        .select("id, name, slug, authority_score, trending_score, article_count")
+        .in("id", seedTopicIds.slice(0, 120))
+        .order("article_count", { ascending: false })
+        .limit(8)
+    : Promise.resolve({ data: [], error: null });
+
+  const entitiesPromise = seedEntityIds.length
+    ? client
+        .from("entities")
+        .select("id, name, slug, authority_score, mention_count")
+        .in("id", seedEntityIds.slice(0, 120))
+        .order("mention_count", { ascending: false })
+        .limit(8)
+    : Promise.resolve({ data: [], error: null });
+
+  const guidesPromise = guideCategories.length
+    ? client
+        .from("guides")
+        .select("slug, title, summary")
+        .eq("published", true)
+        .in("category", guideCategories)
+        .limit(6)
+    : Promise.resolve({ data: [], error: null });
+
+  const [articlesResult, topicsResult, entitiesResult, guidesResult, knowledgeResult, comparisonsResult, statsResult] =
+    await Promise.all([
+      articlesPromise,
+      topicsPromise,
+      entitiesPromise,
+      guidesPromise,
+      client
+        .from("knowledge_pages")
+        .select("slug, title, summary, topic_id, entity_id")
+        .eq("published", true)
+        .limit(200),
+      client
+        .from("comparison_pages")
+        .select("slug, title, summary, entity_a_id, entity_b_id")
+        .eq("published", true)
+        .limit(200),
+      client.from("cluster_stats").select("*").eq("slug", cluster.slug).maybeSingle(),
+    ]);
+
+  for (const result of [
+    articlesResult,
+    topicsResult,
+    entitiesResult,
+    guidesResult,
+    knowledgeResult,
+    comparisonsResult,
+    statsResult,
+  ]) {
+    if (result.error) throw result.error;
+  }
+
+  const entityIds = new Set(seedEntityIds);
+  const topicIds = new Set(seedTopicIds);
+
+  const knowledge = ((knowledgeResult.data || []) as ClusterRouteKnowledge[])
+    .filter((item) => topicIds.has(item.topic_id || "") || entityIds.has(item.entity_id || ""))
+    .slice(0, 6);
+
+  const comparisons = ((comparisonsResult.data || []) as ClusterRouteComparison[])
+    .filter((item) => entityIds.has(item.entity_a_id || "") || entityIds.has(item.entity_b_id || ""))
+    .slice(0, 6);
+
+  return routeFound({
+    cluster,
+    stats: (statsResult.data || null) as ClusterStatsRow | null,
+    articles: (articlesResult.data || []) as unknown as ClusterRouteArticle[],
+    topics: (topicsResult.data || []) as ClusterRouteTopic[],
+    entities: (entitiesResult.data || []) as ClusterRouteEntity[],
+    guides: (guidesResult.data || []) as ClusterRouteGuide[],
+    knowledge,
+    comparisons,
+  });
+}
 export async function loadSearchIntentRouteData(
   client: MarketrendsDataClient,
   slug?: string,

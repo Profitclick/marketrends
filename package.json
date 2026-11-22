@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "bun test scripts",
     "preview": "vite preview",
-    "build:artifacts": "node scripts/build-public-artifacts.mjs dist"
+    "build:artifacts": "node scripts/build-public-artifacts.mjs dist",
+    "build:sitemaps": "node scripts/build-public-artifacts.mjs dist --sitemaps-only"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

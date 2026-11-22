@@ -75,3 +75,62 @@ The production `main` CI is independently blocked before typecheck/build because
 PREP validation temporarily used `npm install --no-audit --no-fund` only to separate the PREP code result from this pre-existing lockfile issue. The branch workflow has been restored to match `main`; no production CI policy change is part of PREP-01.
 
 The lockfile drift should be repaired separately before relying on `npm ci` as a green production gate.
+
+
+## PREP-03 — corrected migration contracts
+
+The free Lovable preflight surfaced several assumptions that were stronger than the actual branch state. PREP-03 closes the framework-neutral gaps without starting TanStack Start or changing current runtime behavior.
+
+### Added
+
+- `articleMetadata()` now exists as a pure metadata contract for article routes.
+- `getAuthorForArticle(stableKey)` provides deterministic author selection for future SSR/hydration parity. It is additive only; current React rendering is not switched to it before the migration.
+- `loadClusterRouteData()` now owns the canonical cluster/vertical query graph, including `cluster_definitions`, `cluster_seed_nodes`, the `article_clusters` membership join, related topics/entities/guides/knowledge/comparisons, and `cluster_stats`.
+- `clusterMetadata()` now provides the pure canonical/CollectionPage/FAQ metadata contract for the six short vertical routes.
+- `buildSitemapArtifacts()` separates deterministic sitemap generation from the legacy SPA-only private-shell/prerender/static-404 path.
+- `npm run build:sitemaps` provides a strict sitemap-only entrypoint intended for the later server framework build.
+
+### Intentionally not done outside Lovable
+
+- No `@tanstack/react-start` packages or files.
+- No server entry files.
+- No file-based TanStack routes.
+- No direct server Supabase client in route loaders.
+- No `createServerFn` or Lovable runtime-specific server boundary.
+- No replacement of React Router or React Helmet.
+- No removal of the current SPA prerender/private-shell/static-404 pipeline.
+- No current UI behavior change from random to deterministic article author selection.
+
+### Correct future server-data boundary
+
+The paid migration must not assume a TanStack route loader is server-only. The intended boundary is:
+
+`TanStack route loader -> Lovable-supported TanStack server function / server boundary -> server-safe Supabase client -> existing routeData function`.
+
+The exact server primitive and generated file shape remain Lovable/TanStack-runtime responsibilities and must be selected by the migration engine rather than pre-baked here.
+
+### Build handoff
+
+Current Vite behavior still calls `buildPublicArtifacts()` unchanged. During TanStack migration:
+
+- keep `buildSitemapArtifacts()` / `generate-sitemaps.mjs`;
+- retire the SPA-only physical prerender, private route shell and static 404 generators only after equivalent server HTTP/metadata gates pass;
+- replace physical-file parity with sitemap-to-server-response HTTP/canonical parity.
+
+
+### PREP-03 validation
+
+Validated in GitHub Actions run `45069274623`:
+
+- clean `npm ci`: PASS
+- app typecheck: PASS
+- node/Vite typecheck: PASS
+- deterministic script suite: 77/77 PASS across 16 files
+- production-access observation: 3 PASS, 1 environment-dependent/skipped-by-session condition
+- Vite build: PASS
+- sitemaps: 7 files, 4,477 articles, 0 news
+- private shells: 3
+- prerender: 5,282 routes; sitemap 5,276; missing 0; unexpected 6 allowed standalone routes
+- static 404 generation: PASS
+
+The temporary PREP-03 validation workflow is not part of the migration deliverable and is removed after validation.

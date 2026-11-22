@@ -1,4 +1,6 @@
-import { getCategoryFallbackImage } from "@/utils/seo";
+import { generateArticleSchema, getCategoryFallbackImage } from "@/utils/seo";
+import type { Author } from "@/utils/authors";
+import type { ClusterConfig } from "@/config/clusters";
 import type {
   CategoryDefinition,
   EntityRouteEntity,
@@ -10,6 +12,7 @@ import type {
   CompareRoutePage,
   SearchIntentRouteIntent,
   SearchIntentRoutePillar,
+  RouteArticle,
 } from "@/lib/routeData";
 
 export const SITE_URL = "https://marketrends.no";
@@ -24,6 +27,10 @@ export interface RouteSeoMetadata {
   breadcrumbs?: { name: string; url: string }[];
   articleSchema?: object;
   faqSchema?: object;
+  publishedTime?: string;
+  modifiedTime?: string;
+  author?: string;
+  section?: string;
 }
 
 export function homepageMetadata(): RouteSeoMetadata {
@@ -32,6 +39,77 @@ export function homepageMetadata(): RouteSeoMetadata {
     description: "Norges ledende kilde for markedstrender, fintech, krypto, AI og startup-nyheter. Oppdatert døgnet rundt med de siste nyhetene innen teknologi og finans.",
     canonicalUrl: SITE_URL,
     ogType: "website",
+  };
+}
+
+
+export function articleMetadata(
+  article: RouteArticle,
+  author: Author,
+  articleIndex = 0,
+): RouteSeoMetadata {
+  const canonicalUrl = `${SITE_URL}/${article.slug}`;
+  const image = article.image_url || getCategoryFallbackImage(article.category, articleIndex);
+  const description = article.meta_description || article.title;
+  const wordCount = article.content.split(/\s+/).filter((word) => word.length > 0).length;
+
+  return {
+    title: article.title,
+    description,
+    canonicalUrl,
+    ogImage: image,
+    ogType: "article",
+    publishedTime: article.created_at,
+    modifiedTime: article.updated_at || article.created_at,
+    author: author.name,
+    section: article.category,
+    tags: article.tags || [],
+    breadcrumbs: [
+      { name: "Hjem", url: SITE_URL },
+      {
+        name: article.category,
+        url: `${SITE_URL}/?kategori=${article.category.toLowerCase().replace(/\s+/g, "-")}`,
+      },
+      { name: article.title.substring(0, 50), url: canonicalUrl },
+    ],
+    articleSchema: generateArticleSchema({
+      title: article.title,
+      description,
+      image,
+      url: canonicalUrl,
+      author: author.name,
+      publishedTime: article.created_at,
+      modifiedTime: article.updated_at || article.created_at,
+      category: article.category,
+      tags: article.tags || [],
+      wordCount,
+    }),
+  };
+}
+
+export function clusterMetadata(cluster: ClusterConfig): RouteSeoMetadata {
+  const canonicalUrl = `${SITE_URL}${cluster.vertical || `/${cluster.slug}`}`;
+  return {
+    title: `${cluster.name} – tema, analyse og guider | Marketrends`,
+    description: cluster.intro,
+    canonicalUrl,
+    ogType: "website",
+    articleSchema: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: cluster.name,
+      description: cluster.intro,
+      url: canonicalUrl,
+    },
+    faqSchema: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: cluster.faq.map((faq) => ({
+        "@type": "Question",
+        name: faq.q,
+        acceptedAnswer: { "@type": "Answer", text: faq.a },
+      })),
+    },
   };
 }
 

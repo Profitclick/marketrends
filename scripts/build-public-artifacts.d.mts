@@ -4,6 +4,15 @@ export interface PublicArtifactBuildOptions {
   logger?: Pick<Console, "log" | "warn">;
 }
 
+export interface SitemapArtifactBuildOptions extends PublicArtifactBuildOptions {
+  failOnError?: boolean;
+}
+
+export function buildSitemapArtifacts(
+  outDir: string,
+  options?: SitemapArtifactBuildOptions,
+): Promise<unknown>;
+
 export interface PublicArtifactBuildResult {
   sitemap: unknown;
   privateFiles: string[];
