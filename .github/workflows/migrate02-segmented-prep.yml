@@ -1,0 +1,70 @@
+name: MIGRATE-02.3A.7.4.1 offline preparation verification
+on:
+  push:
+    branches: [diagnostics/migrate02-3a7-4-1]
+    paths: [.github/workflows/migrate02-segmented-prep.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SEGMENT_SOURCE_ID: '15049826258'
+      SEGMENT_SOURCE_SHA: ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671
+      SEGMENT_PRIOR_PASSED: '1321'
+      SEGMENT_PRIOR_HISTORY: '1324'
+      SEGMENT_LIMIT: '250'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: guard-src
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          path: recovery-src
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Retrieve and verify frozen source artifact only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "SEGMENT_SOURCE_DIR=$RUNNER_TEMP/prep-source" >> "$GITHUB_ENV"
+          echo "SEGMENT_EVIDENCE=$RUNNER_TEMP/prep-evidence" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/prep-source" "$RUNNER_TEMP/prep-evidence"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15049826258" > "$RUNNER_TEMP/prep-evidence/source-artifact.json"
+          jq -e '.id==15049826258 and .expired==false and .digest=="sha256:ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671" and .workflow_run.id==45669533453 and .workflow_run.head_sha=="4cccbfe0c787e69eda0ef76d246a756fd34ed312"' "$RUNNER_TEMP/prep-evidence/source-artifact.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15049826258/zip" > "$RUNNER_TEMP/prep-source.zip"
+          echo "$SEGMENT_SOURCE_SHA  $RUNNER_TEMP/prep-source.zip" | sha256sum -c -
+          unzip -tq "$RUNNER_TEMP/prep-source.zip"
+          unzip -q "$RUNNER_TEMP/prep-source.zip" -d "$RUNNER_TEMP/prep-source"
+      - name: Offline tests only - no SSR build, runtime, or probes
+        working-directory: recovery-src
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          node --test scripts/full-sitemap-checkpoint.test.mjs | tee "$SEGMENT_EVIDENCE/recovery-tests.log"
+          SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segmented-recovery-guard.test.mjs | tee "$SEGMENT_EVIDENCE/guard-tests.log"
+          node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
+          jq -e '.prior==1321 and .historyCount==1324 and .limit==250' "$SEGMENT_EVIDENCE/segment-plan.json"
+          jq -e 'length==250' "$SEGMENT_EVIDENCE/targets.json"
+          test ! -e "$SEGMENT_EVIDENCE/probe-starts.jsonl"
+          test ! -e "$SEGMENT_EVIDENCE/runtime-resources.jsonl"
+          test ! -e "$SEGMENT_EVIDENCE/segment-gate.json"
+          printf '{"status":"OFFLINE_PREPARATION_PASS","ssrProbes":0,"liveAuthorized":false}\n' > "$SEGMENT_EVIDENCE/offline-gate.json"
+      - uses: actions/upload-artifact@v4
+        if: always() && env.SEGMENT_EVIDENCE != ''
+        with:
+          name: migrate02-segmented-preparation
+          path: |
+            ${{ env.SEGMENT_EVIDENCE }}/*.json
+            ${{ env.SEGMENT_EVIDENCE }}/*.log
+          retention-days: 14
+          if-no-files-found: error
