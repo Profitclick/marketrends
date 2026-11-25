@@ -1,4 +1,4 @@
-name: MIGRATE-01 build validation v3
+name: MIGRATE-01 build validation v4
 on:
   push:
     branches: [feat/tanstack-migration]
@@ -19,7 +19,9 @@ jobs:
           cache: npm
       - uses: oven-sh/setup-bun@v2
       - name: Resolve lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+        run: |
+          rm package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Clean install
         run: npm ci --no-audit --no-fund
       - name: Build and generate route tree
