@@ -11,15 +11,15 @@ jobs:
     if: >-
       github.repository == 'Profitclick/marketrends' &&
       github.ref == 'refs/heads/diagnostics/migrate02-3a7-4-1' &&
-      github.event.before == '6c9238abd4e1d06a29f8cee3a9d541d3b6592d05' &&
+      github.event.before == 'd97f771185bc992ad9e5ef0657605a89d388f35a' &&
       github.run_attempt == '1'
     uses: ./.github/workflows/migrate02-segmented-recovery.yml
     with:
       authorization: RUN_ONE_SEGMENT
-      source_artifact_id: '15072704349'
-      source_sha256: 93b398ec879a79921057f756f816cf0b01ebe686bb973ae630f7c74c64f892dc
-      source_run_id: '45724419302'
-      source_head_sha: 6c9238abd4e1d06a29f8cee3a9d541d3b6592d05
-      prior_passed: 1472
-      prior_history: 1475
+      source_artifact_id: '15072854893'
+      source_sha256: 5071e6cf3786979a641ba6d8d255d0578830559ad50e87513b34fa505a952663
+      source_run_id: '45724905812'
+      source_head_sha: d97f771185bc992ad9e5ef0657605a89d388f35a
+      prior_passed: 1522
+      prior_history: 1525
       batch_limit: 50
