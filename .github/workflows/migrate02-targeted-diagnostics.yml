@@ -1,0 +1,156 @@
+name: MIGRATE-02.3A.6 targeted SSR timeout diagnostics
+on:
+  push:
+    branches: [diagnostics/migrate02-3a6]
+    paths: [.github/workflows/migrate02-targeted-diagnostics.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: migrate02-release-regression
+  cancel-in-progress: false
+jobs:
+  diagnostics:
+    if: github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify original artifact and exact checkout
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          mkdir -p "$RUNNER_TEMP/migrate02-legacy" "$RUNNER_TEMP/migrate02-evidence"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15043322801" > "$RUNNER_TEMP/migrate02-evidence/source-artifact.json"
+          jq -e '.id == 15043322801 and .expired == false and .workflow_run.id == 45654326351 and .workflow_run.head_sha == "a18137735307e92fb99c2f1116ea57a0925315c3"' "$RUNNER_TEMP/migrate02-evidence/source-artifact.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15043322801/zip" > "$RUNNER_TEMP/migrate02-original.zip"
+          echo "6c42ee6c06a95050be606ee826145dfa179cf1bf10fc28eb596c73a3a2852a52  $RUNNER_TEMP/migrate02-original.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/migrate02-original.zip" -d "$RUNNER_TEMP/migrate02-legacy"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import assert from 'node:assert/strict';
+          import {auditRevision,openCheckpoint} from './scripts/full-sitemap-checkpoint.mjs';
+          const revision = auditRevision(true);
+          const legacyDir = path.join(process.env.RUNNER_TEMP,'migrate02-legacy/full-sitemap');
+          const dir = path.join(process.env.RUNNER_TEMP,'migrate02-preflight');
+          const c = openCheckpoint({dir,legacyDir,revision,limit:3});
+          const failures=c.latest().filter(r=>r.issues.length);
+          assert.equal(c.snapshot.entries.length,5276);
+          assert.equal(c.latest().length,921);
+          assert.equal(failures.length,3);
+          assert.ok(failures.every(r=>r.kind==='article' && r.status===null && r.issues.includes('FETCH_ERROR')));
+          assert.equal(c.pending.length,3);
+          assert.deepEqual(new Set(c.pending.map(r=>r.url)),new Set(failures.map(r=>r.url)));
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'migrate02-evidence/targets.json'),JSON.stringify(failures,null,2));
+          console.log(JSON.stringify({revision,targets:failures.map(r=>r.url)},null,2));
+          JS
+      - name: Offline recovery tests
+        run: node --test scripts/full-sitemap-checkpoint.test.mjs
+      - name: Install and compile SSR only
+        run: |
+          npm ci --no-audit --no-fund
+          ./node_modules/.bin/vite build
+          test -f .output/server/wrangler.json
+          test -f .env
+          test -z "$(git status --porcelain --untracked-files=no)"
+      - name: Start isolated runtime and run exactly one bounded batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/migrate02-evidence"
+          cp .env .output/server/.dev.vars
+          # Never send an HTTP readiness request; TCP only.
+          setsid npx --yes wrangler@4.168.0 dev --config .output/server/wrangler.json --no-bundle --ip 127.0.0.1 --port 3000 > "$RUNNER_TEMP/migrate02-runtime.raw.log" 2>&1 &
+          server=$!
+          sampler=""
+          cleanup() {
+            if [ -n "$sampler" ]; then kill "$sampler" 2>/dev/null || true; wait "$sampler" 2>/dev/null || true; fi
+            kill -- "-$server" 2>/dev/null || true
+            wait "$server" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for i in $(seq 1 60); do
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            if (echo > /dev/tcp/127.0.0.1/3000) 2>/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          (
+            while true; do
+              date -u +%FT%TZ
+              ps -eo pid,ppid,pgid,pcpu,rss,comm | awk -v g="$server" '$3==g'
+              sleep 1
+            done
+          ) > "$evidence/runtime-resources.txt" &
+          sampler=$!
+          set +e
+          MARKETRENDS_AUDIT_ORIGIN=http://127.0.0.1:3000 \
+          MARKETRENDS_AUDIT_LEGACY_DIR="$RUNNER_TEMP/migrate02-legacy/full-sitemap" \
+          MARKETRENDS_AUDIT_OUTPUT="$evidence/recovery" \
+          MARKETRENDS_AUDIT_BATCH_LIMIT=3 \
+          node scripts/full-sitemap-ssr-audit.mjs > "$evidence/audit.log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$evidence/audit-exit-code.txt"
+          # The release audit intentionally exits nonzero for incomplete coverage.
+          # Distinguish successful diagnostic collection from a release PASS.
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import assert from 'node:assert/strict';
+          const dir=path.join(process.env.RUNNER_TEMP,'migrate02-evidence');
+          const targets=JSON.parse(fs.readFileSync(path.join(dir,'targets.json'),'utf8'));
+          const s=JSON.parse(fs.readFileSync(path.join(dir,'recovery/summary.json'),'utf8'));
+          const history=fs.readFileSync(path.join(dir,'recovery/attempt-history.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+          const rows=history.slice(921);
+          assert.equal(s.revision,'091837a1a5b1ed2be2c41fcba2d6032f2dfc3395');
+          assert.equal(s.complete,false);
+          assert.ok(rows.length>=1 && rows.length<=3);
+          assert.equal(rows.length,s.batchAttempted);
+          assert.ok(rows.every(r=>targets.some(t=>t.url===r.url)));
+          assert.equal(new Set(rows.map(r=>r.url)).size,rows.length);
+          const report={batchAttempted:rows.length,releaseComplete:false,stopReason:s.stopReason,rows};
+          fs.writeFileSync(path.join(dir,'diagnostic-results.json'),JSON.stringify(report,null,2));
+          console.log(JSON.stringify(report,null,2));
+          JS
+      - name: Collect sanitized runtime log
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/migrate02-evidence"
+          python3 - <<'PY'
+          import pathlib, os, re
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])
+          source=root/"migrate02-runtime.raw.log"
+          if source.exists():
+              # Retain only operational/error lines, redact potential credentials.
+              lines=[]
+              for line in source.read_text(errors="replace").splitlines():
+                  if not re.search(r'error|warn|timeout|ready|GET |exception|workerd|wrangler',line,re.I): continue
+                  if re.search(r'authorization|apikey|api.key|secret|token|publishable|password|cookie|binding|environment variable',line,re.I): continue
+                  line=re.sub(r'https?://[^\s"<>]+','[URL redacted]',line)
+                  line=re.sub(r'[A-Za-z0-9_-]{25,}(?:\.[A-Za-z0-9_-]{10,})*','[long value redacted]',line)
+                  lines.append(line)
+              (root/"migrate02-evidence/runtime.log").write_text("\n".join(lines)+"\n")
+          PY
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migrate02-targeted-diagnostics
+          path: ${{ runner.temp }}/migrate02-evidence/
+          retention-days: 14
+          if-no-files-found: error
