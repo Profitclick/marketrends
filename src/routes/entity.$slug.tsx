@@ -12,6 +12,7 @@ export const Route = createFileRoute("/entity/$slug")({
     return result.data;
   },
   head: ({ loaderData }) => {
+    if (!loaderData) return {};
     const { seo, entitySchema } = entityMetadata(loaderData.entity);
     return toTanStackHead(seo, { extraSchemas: [entitySchema] });
   },
