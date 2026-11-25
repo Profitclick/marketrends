@@ -1,0 +1,25 @@
+name: MIGRATE-02.3A.7.4.2 bounded recovery segment
+on:
+  push:
+    branches: [diagnostics/migrate02-3a7-4-1]
+    paths: [.github/workflows/migrate02-next-segment.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  bounded-segment:
+    if: >-
+      github.repository == 'Profitclick/marketrends' &&
+      github.ref == 'refs/heads/diagnostics/migrate02-3a7-4-1' &&
+      github.event.before == 'a381ec3cc85ffb921fdcec0e1473ee4a633f525e' &&
+      github.run_attempt == '1'
+    uses: ./.github/workflows/migrate02-segmented-recovery.yml
+    with:
+      authorization: RUN_ONE_SEGMENT
+      source_artifact_id: '15065670674'
+      source_sha256: 0433ad4dfe9e1e8294824d1ac3fa9e0a502c0d755784cc48828252864f0c9752
+      source_run_id: '45704914324'
+      source_head_sha: 1a24a6959c698cf9d590dddd052c8d4636e0e2b5
+      prior_passed: 1322
+      prior_history: 1325
+      batch_limit: 50
