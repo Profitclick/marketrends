@@ -5,14 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node scripts/build-public-artifacts.mjs .output/public --sitemaps-only",
+    "build": "vite build && node --env-file=.env scripts/build-public-artifacts.mjs .output/public --sitemaps-only",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "bun test scripts",
     "preview": "vite preview",
     "build:artifacts": "node scripts/build-public-artifacts.mjs dist",
-    "build:sitemaps": "node scripts/build-public-artifacts.mjs dist --sitemaps-only"
+    "build:sitemaps": "node --env-file=.env scripts/build-public-artifacts.mjs .output/public --sitemaps-only"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
