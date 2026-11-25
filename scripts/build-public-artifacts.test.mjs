@@ -1,12 +1,14 @@
 import { test, expect } from "bun:test";
 import fs from "node:fs";
 
-test("Vite delegates public artifact policy to a portable orchestrator", () => {
+test("TanStack build no longer invokes legacy SPA artifact generation from Vite", () => {
   const vite = fs.readFileSync("vite.config.ts", "utf8");
-  expect(vite).toContain('import { buildPublicArtifacts } from "./scripts/build-public-artifacts.mjs"');
-  expect(vite).toContain("await buildPublicArtifacts(");
-  expect(vite).not.toContain('import { generateSitemaps }');
-  expect(vite).not.toContain('import { prerender }');
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+
+  expect(vite).toContain('@lovable.dev/vite-tanstack-config');
+  expect(vite).not.toContain("buildPublicArtifacts");
+  expect(pkg.scripts.build).toContain("--sitemaps-only");
+  expect(pkg.scripts.build).not.toContain("build:artifacts");
 });
 
 test("portable artifact orchestrator separates strict sitemap generation from legacy SPA artifacts", () => {
