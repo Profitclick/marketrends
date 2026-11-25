@@ -13,9 +13,16 @@ import type {
   SearchIntentRouteIntent,
   SearchIntentRoutePillar,
   RouteArticle,
+  type SerializableJson,
 } from "@/lib/routeData";
 
 export const SITE_URL = "https://marketrends.no";
+
+function schemaObject(value: SerializableJson | undefined): object | undefined {
+  return value !== null && value !== undefined && typeof value === "object"
+    ? (value as object)
+    : undefined;
+}
 
 export interface RouteSeoMetadata {
   title: string;
@@ -281,7 +288,7 @@ export function knowledgeMetadata(page: KnowledgeRoutePage): RouteSeoMetadata {
       { name: "Kunnskap", url: `${SITE_URL}/knowledge` },
       { name: page.title, url: canonicalUrl },
     ],
-    faqSchema: page.schema_json || undefined,
+    faqSchema: schemaObject(page.schema_json),
   };
 }
 
@@ -328,6 +335,6 @@ export function searchIntentMetadata(
         : []),
       { name: title, url: canonicalUrl },
     ],
-    faqSchema: meta.faq_schema,
+    faqSchema: schemaObject(meta.faq_schema),
   };
 }
