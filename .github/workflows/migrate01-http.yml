@@ -1,4 +1,4 @@
-name: MIGRATE-01 local HTTP truth v3
+name: MIGRATE-01 local HTTP truth v4
 on:
   push:
     branches: [feat/tanstack-migration]
@@ -23,7 +23,7 @@ jobs:
         run: npm run build
       - name: Start local Nitro
         run: |
-          npx nitro preview --host 127.0.0.1 --port 3000 >/tmp/marketrends-nitro.log 2>&1 &
+          npx --yes wrangler@4.168.0 dev --config .output/server/wrangler.json --no-bundle --ip 127.0.0.1 --port 3000 --env-file .env >/tmp/marketrends-nitro.log 2>&1 &
           echo $! >/tmp/marketrends-nitro.pid
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3000/ >/dev/null; then
