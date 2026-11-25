@@ -11,7 +11,8 @@ export const Route = createFileRoute("/daytrading")({
     if (result.status !== "found") throw notFound();
     return result.data;
   },
-  head: ({ loaderData }) => toTanStackHead(clusterMetadata(loaderData.cluster)),
+  head: ({ loaderData }) =>
+    loaderData ? toTanStackHead(clusterMetadata(loaderData.cluster)) : {},
   component: DaytradingRoute,
 });
 
