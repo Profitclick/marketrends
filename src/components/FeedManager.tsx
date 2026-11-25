@@ -33,7 +33,7 @@ export const FeedManager = ({ onUpdate }: FeedManagerProps) => {
         .order("name");
 
       if (error) throw error;
-      setFeeds(data || []);
+      setFeeds((data || []).map((feed) => ({ ...feed, active: feed.active ?? false })));
     } catch (error) {
       console.error("Error fetching feeds:", error);
       toast.error("Failed to fetch feeds");
