@@ -1,0 +1,182 @@
+name: MIGRATE-02.3A.7.4 reusable segmented recovery
+# No push, schedule, or dispatch trigger. A separate, explicitly approved caller is required.
+on:
+  workflow_call:
+    inputs:
+      authorization:
+        required: true
+        type: string
+      source_artifact_id:
+        required: true
+        type: string
+      source_sha256:
+        required: true
+        type: string
+      source_run_id:
+        required: true
+        type: string
+      source_head_sha:
+        required: true
+        type: string
+      prior_passed:
+        required: true
+        type: number
+      prior_history:
+        required: true
+        type: number
+      batch_limit:
+        required: true
+        type: number
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: migrate02-release-regression
+  cancel-in-progress: false
+jobs:
+  segment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+      CI: 'true'
+      SEGMENT_AUTH: ${{ inputs.authorization }}
+      SEGMENT_SOURCE_ID: ${{ inputs.source_artifact_id }}
+      SEGMENT_SOURCE_SHA: ${{ inputs.source_sha256 }}
+      SEGMENT_SOURCE_RUN: ${{ inputs.source_run_id }}
+      SEGMENT_SOURCE_HEAD: ${{ inputs.source_head_sha }}
+      SEGMENT_PRIOR_PASSED: ${{ inputs.prior_passed }}
+      SEGMENT_PRIOR_HISTORY: ${{ inputs.prior_history }}
+      SEGMENT_LIMIT: ${{ inputs.batch_limit }}
+    steps:
+      - name: Refuse unapproved invocation or rerun
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = Profitclick/marketrends
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$SEGMENT_AUTH" = RUN_ONE_SEGMENT
+          case "$GITHUB_REF" in refs/heads/diagnostics/migrate02-3a7-4-*) ;; *) exit 70;; esac
+          [[ "$SEGMENT_SOURCE_ID" =~ ^[0-9]+$ ]]
+          [[ "$SEGMENT_SOURCE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$SEGMENT_SOURCE_SHA" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$SEGMENT_SOURCE_HEAD" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$SEGMENT_LIMIT" =~ ^[1-9][0-9]{0,2}$ ]] && (( SEGMENT_LIMIT <= 250 ))
+          [[ "$SEGMENT_PRIOR_PASSED" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_PASSED >= 1321 && SEGMENT_PRIOR_PASSED < 5276 ))
+          [[ "$SEGMENT_PRIOR_HISTORY" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_HISTORY == SEGMENT_PRIOR_PASSED + 3 ))
+          echo "SEGMENT_EVIDENCE=$RUNNER_TEMP/segment-evidence" >> "$GITHUB_ENV"
+          echo "SEGMENT_SOURCE_DIR=$RUNNER_TEMP/segment-source" >> "$GITHUB_ENV"
+          echo "SEGMENT_RAW_LOG=$RUNNER_TEMP/segment-runtime.raw.log" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          ref: 6f36fdd87b0c5ff9c0a940ff952693bc4a8f8d91
+          path: guard-src
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          path: recovery-src
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Download authorized source, validate provenance and bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$SEGMENT_EVIDENCE" "$SEGMENT_SOURCE_DIR"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SEGMENT_SOURCE_ID" > "$SEGMENT_EVIDENCE/source-artifact.json"
+          jq -e --arg id "$SEGMENT_SOURCE_ID" --arg sha "$SEGMENT_SOURCE_SHA" --arg run "$SEGMENT_SOURCE_RUN" --arg head "$SEGMENT_SOURCE_HEAD" '(.id|tostring)==$id and .expired==false and .digest==("sha256:"+$sha) and (.workflow_run.id|tostring)==$run and .workflow_run.head_sha==$head' "$SEGMENT_EVIDENCE/source-artifact.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SEGMENT_SOURCE_RUN" > "$SEGMENT_EVIDENCE/source-run.json"
+          jq -e --arg head "$SEGMENT_SOURCE_HEAD" '.status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$head' "$SEGMENT_EVIDENCE/source-run.json" >/dev/null
+          if [[ "$SEGMENT_SOURCE_ID" == 15049826258 ]]; then
+            test "$SEGMENT_SOURCE_RUN" = 45669533453
+            test "$SEGMENT_SOURCE_HEAD" = 4cccbfe0c787e69eda0ef76d246a756fd34ed312
+            test "$SEGMENT_SOURCE_SHA" = ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671
+          else
+            jq -e '.name=="migrate02-segmented-recovery" and (.workflow_run.head_branch|startswith("diagnostics/migrate02-3a7-4-"))' "$SEGMENT_EVIDENCE/source-artifact.json" >/dev/null
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SEGMENT_SOURCE_ID/zip" > "$RUNNER_TEMP/segment-source.zip"
+          echo "$SEGMENT_SOURCE_SHA  $RUNNER_TEMP/segment-source.zip" | sha256sum -c -
+          unzip -tq "$RUNNER_TEMP/segment-source.zip"
+          unzip -q "$RUNNER_TEMP/segment-source.zip" -d "$SEGMENT_SOURCE_DIR"
+      - name: Offline checkpoint tests and preparation
+        working-directory: recovery-src
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          test "$(git -C ../guard-src rev-parse HEAD)" = 6f36fdd87b0c5ff9c0a940ff952693bc4a8f8d91
+          node --test scripts/full-sitemap-checkpoint.test.mjs
+          SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segmented-recovery-guard.test.mjs
+          node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
+      - name: Compile SSR without sitemap generation
+        working-directory: recovery-src
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          ./node_modules/.bin/vite build
+          test -f .output/server/wrangler.json
+          test -f .env
+          test -z "$(git status --porcelain --untracked-files=no)"
+      - name: One supervised isolated segment
+        working-directory: recovery-src
+        shell: bash
+        run: |
+          set -euo pipefail
+          node ../guard-src/scripts/segmented-recovery-guard.mjs baseline
+          cp .env .output/server/.dev.vars
+          setsid npx --yes wrangler@4.168.0 dev --config .output/server/wrangler.json --no-bundle --ip 127.0.0.1 --port 3000 > "$SEGMENT_RAW_LOG" 2>&1 &
+          server=$!
+          cleanup() {
+            kill -- "-$server" 2>/dev/null || true
+            wait "$server" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for i in $(seq 1 60); do
+            kill -0 "$server" 2>/dev/null || break
+            if (echo > /dev/tcp/127.0.0.1/3000) 2>/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          SEGMENT_RUNTIME_PGID="$server" node ../guard-src/scripts/segmented-recovery-guard.mjs live
+          jq -e '.status=="PASS"' "$SEGMENT_EVIDENCE/segment-gate.json" >/dev/null
+      - name: Sanitize runtime evidence; never export credentials or raw log
+        if: always()
+        run: |
+          test -n "$SEGMENT_EVIDENCE" || exit 0
+          mkdir -p "$SEGMENT_EVIDENCE"
+          python3 - <<'PY'
+          import os,pathlib,re
+          out=pathlib.Path(os.environ["SEGMENT_EVIDENCE"])
+          raw=pathlib.Path(os.environ["SEGMENT_RAW_LOG"])
+          if raw.exists():
+              lines=[]
+              for line in raw.read_text(errors="replace").splitlines():
+                  if not re.search(r'error|warn|timeout|ready|GET |exception|workerd|wrangler',line,re.I): continue
+                  if re.search(r'authorization|apikey|api.key|secret|token|publishable|password|cookie|binding|environment variable',line,re.I): continue
+                  line=re.sub(r'https?://[^\s"<>]+','[URL redacted]',line)
+                  line=re.sub(r'[A-Za-z0-9_-]{25,}(?:\.[A-Za-z0-9_-]{10,})*','[long value redacted]',line)
+                  lines.append(line)
+              (out/"runtime.log").write_text("\n".join(lines)+"\n")
+          PY
+      - name: Quarantine any failed or incomplete execution
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          test -n "$SEGMENT_EVIDENCE" || exit 0
+          mkdir -p "$SEGMENT_EVIDENCE"
+          if [[ "$JOB_STATUS" != success ]] || ! jq -e '.status=="PASS"' "$SEGMENT_EVIDENCE/segment-gate.json" >/dev/null 2>&1; then
+            test -f "$SEGMENT_EVIDENCE/guard-stop.json" || printf '{"status":"QUARANTINE","code":"WORKFLOW_OR_GATE_FAILURE","resumeAllowed":false}\n' > "$SEGMENT_EVIDENCE/guard-stop.json"
+            cp "$SEGMENT_EVIDENCE/guard-stop.json" "$SEGMENT_EVIDENCE/segment-gate.json"
+            exit 70
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && env.SEGMENT_EVIDENCE != ''
+        with:
+          name: migrate02-segmented-recovery
+          path: ${{ env.SEGMENT_EVIDENCE }}/
+          retention-days: 14
+          if-no-files-found: error
