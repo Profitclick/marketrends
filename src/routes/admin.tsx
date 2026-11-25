@@ -1,5 +1,6 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
-import Index from "@/pages/Index";
+import { lazy, Suspense } from "react";
+const Index = lazy(() => import("@/pages/Index"));
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { privateRouteHead } from "@/lib/routeHead";
 
@@ -18,7 +19,7 @@ function AdminRoute() {
       }
     >
       <ProtectedRoute>
-        <Index />
+        <Suspense fallback={<p>Laster…</p>}><Index /></Suspense>
       </ProtectedRoute>
     </ClientOnly>
   );

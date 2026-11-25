@@ -185,7 +185,7 @@ type KnowledgeRow = Database["public"]["Tables"]["knowledge_pages"]["Row"];
 type ComparisonRow = Database["public"]["Tables"]["comparison_pages"]["Row"];
 type ClusterStatsRow = Database["public"]["Tables"]["cluster_stats"]["Row"];
 
-export type ClusterRouteArticle = ArticleRow & {
+export type ClusterRouteArticle = Pick<ArticleRow, "id" | "title" | "slug" | "category" | "image_url" | "created_at" | "meta_description" | "article_type"> & {
   article_clusters: { cluster_slug: string }[];
 };
 
@@ -229,7 +229,7 @@ export async function loadNewsRouteData(
   if (slug) {
     const { data, error } = await client
       .from("articles")
-      .select("*, affiliate_partners(name)")
+      .select(`${latestArticleSelect}, content, updated_at, archived_sources`)
       .eq("published", true)
       .eq("slug", slug)
       .maybeSingle();
@@ -281,7 +281,8 @@ export async function loadCategoryRouteData(
     .order("created_at", { ascending: false })
     .limit(24);
 
-  if (!primary.error && primary.data?.length) {
+  if (primary.error) throw primary.error;
+  if (primary.data?.length) {
     return routeFound({
       category,
       articles: primary.data as unknown as CategoryArticle[],
@@ -296,6 +297,7 @@ export async function loadCategoryRouteData(
     .order("created_at", { ascending: false })
     .limit(24);
 
+  if (fallback.error) throw fallback.error;
   return routeFound({
     category,
     articles: (fallback.data || []) as unknown as CategoryArticle[],
@@ -310,7 +312,7 @@ export async function loadEntityRouteData(
   if (!slug) return routeNotFound();
   const { data, error } = await client
     .from("entities")
-    .select("*")
+    .select("id,slug,name,type,description,summary,key_facts,faqs,what_happened,why_it_matters,meta_title,meta_description,og_image,aliases,mention_count,mentions_last_24h,mentions_last_7d,mentions_last_30d,momentum_score,trending_score,last_mention_at,wikidata_id")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -327,20 +329,21 @@ export async function loadTopicRouteData(
 
   const { data: topicData, error: topicError } = await client
     .from("topics")
-    .select("*")
+    .select("id,slug,name,description,category_hint,article_count,articles_last_7d,meta_title,meta_description,hero_article_id,explainer_article_id,last_article_at,og_image")
     .eq("slug", slug)
     .maybeSingle();
 
   if (topicError) throw topicError;
   if (!topicData) return routeNotFound();
 
-  const { data: at } = await client
+  const { data: at, error: articlesError } = await client
     .from("article_topics")
     .select("relevance_score, articles!inner(id, title, slug, category, tags, meta_description, image_url, created_at, source_name, article_type, published)")
     .eq("topic_id", topicData.id)
     .order("relevance_score", { ascending: false })
     .limit(60);
 
+  if (articlesError) throw articlesError;
   type TopicArticleJoinRow = { articles: (TopicRouteArticle & { published?: boolean }) | null };
   const articles = ((at || []) as unknown as TopicArticleJoinRow[])
     .map((row) => row.articles)
@@ -364,12 +367,13 @@ export async function loadTopicRouteData(
   let entities: TopicRouteEntity[] = [];
 
   if (articleIds.length) {
-    const { data: ae } = await client
+    const { data: ae, error: entitiesError } = await client
       .from("article_entities")
       .select("entity_id, entities!inner(id, slug, name, type, mention_count)")
       .in("article_id", articleIds)
       .limit(200);
 
+    if (entitiesError) throw entitiesError;
     const counts = new Map<string, { entity: TopicRouteEntity; count: number }>();
     type TopicEntityJoinRow = { entities: TopicRouteEntity | null };
     for (const row of (ae || []) as unknown as TopicEntityJoinRow[]) {
@@ -483,7 +487,7 @@ export async function loadGuideRouteData(
   slug?: string,
 ): Promise<RouteResolution<GuideRoutePage>> {
   if (!slug) return routeNotFound();
-  const { data, error } = await client.from("guides").select("*").eq("slug", slug).maybeSingle();
+  const { data, error } = await client.from("guides").select("slug,title,summary,meta_title,meta_description,category,estimated_read_time,difficulty,steps_json,faq_json,resources_json,content").eq("published", true).eq("slug", slug).maybeSingle();
   if (error) throw error;
   return data ? routeFound(data as unknown as GuideRoutePage) : routeNotFound();
 }
@@ -493,7 +497,7 @@ export async function loadKnowledgeRouteData(
   slug?: string,
 ): Promise<RouteResolution<KnowledgeRoutePage>> {
   if (!slug) return routeNotFound();
-  const { data, error } = await client.from("knowledge_pages").select("*").eq("slug", slug).maybeSingle();
+  const { data, error } = await client.from("knowledge_pages").select("slug,title,summary,meta_title,meta_description,key_takeaways_json,faq_json,schema_json,content").eq("published", true).eq("slug", slug).maybeSingle();
   if (error) throw error;
   return data ? routeFound(data as unknown as KnowledgeRoutePage) : routeNotFound();
 }
@@ -503,7 +507,7 @@ export async function loadCompareRouteData(
   slug?: string,
 ): Promise<RouteResolution<CompareRoutePage>> {
   if (!slug) return routeNotFound();
-  const { data, error } = await client.from("comparison_pages").select("*").eq("slug", slug).maybeSingle();
+  const { data, error } = await client.from("comparison_pages").select("slug,title,summary,meta_title,meta_description,entity_a,entity_b,pros_cons_json,faq_json,schema_json,content").eq("published", true).eq("slug", slug).maybeSingle();
   if (error) throw error;
   return data ? routeFound(data as unknown as CompareRoutePage) : routeNotFound();
 }
@@ -544,7 +548,7 @@ export async function loadClusterRouteData(
 
   const articlesPromise = client
     .from("articles")
-    .select("*, article_clusters!inner(cluster_slug)")
+    .select("id,title,slug,category,image_url,created_at,meta_description,article_type,article_clusters!inner(cluster_slug)")
     .eq("article_clusters.cluster_slug", cluster.slug)
     .eq("published", true)
     .order("created_at", { ascending: false })
@@ -638,7 +642,7 @@ export async function loadSearchIntentRouteData(
 
   const { data, error } = await client
     .from("search_intents")
-    .select("*")
+    .select("id,keyword,target_slug,content_status,intent_type,is_pillar,pillar_intent_id,meta,geo_blocks,search_cluster,entity_id,secondary_entity_id,template,priority_score,quality_score")
     .eq("target_slug", slug)
     .maybeSingle();
 

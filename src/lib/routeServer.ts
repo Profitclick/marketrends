@@ -11,7 +11,13 @@ import {
   loadTopicRouteData,
 } from "@/lib/routeData";
 
-const validateSlug = (data: { slug?: string }) => data;
+const validateSlug = (data: { slug?: string }) => {
+  if (!data || typeof data !== "object" || Array.isArray(data) ||
+      (data.slug !== undefined && (typeof data.slug !== "string" || data.slug.length > 512))) {
+    throw new Error("Invalid route input");
+  }
+  return { slug: data.slug };
+};
 
 async function serverClient() {
   const { createPublicServerClient } = await import("@/integrations/supabase/serverPublic");

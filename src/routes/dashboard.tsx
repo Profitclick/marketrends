@@ -1,5 +1,6 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
-import Dashboard from "@/pages/Dashboard";
+import { lazy, Suspense } from "react";
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { privateRouteHead } from "@/lib/routeHead";
 
@@ -20,7 +21,7 @@ function DashboardRoute() {
   return (
     <ClientOnly fallback={<PrivateFallback />}>
       <ProtectedRoute>
-        <Dashboard />
+        <Suspense fallback={<p>Laster…</p>}><Dashboard /></Suspense>
       </ProtectedRoute>
     </ClientOnly>
   );

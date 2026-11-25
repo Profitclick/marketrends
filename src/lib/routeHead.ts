@@ -87,7 +87,7 @@ export function toTanStackHead(
         ],
     scripts: schemas.map((schema) => ({
       type: "application/ld+json",
-      children: JSON.stringify(schema),
+      children: JSON.stringify(schema).replace(/</g, "\\u003c"),
     })),
   };
 }
