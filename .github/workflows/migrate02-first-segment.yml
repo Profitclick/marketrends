@@ -1,0 +1,25 @@
+name: MIGRATE-02.3A.7.4.2 first isolated segment
+on:
+  push:
+    branches: [diagnostics/migrate02-3a7-4-1]
+    paths: [.github/workflows/migrate02-first-segment.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  first-segment:
+    if: >-
+      github.repository == 'Profitclick/marketrends' &&
+      github.ref == 'refs/heads/diagnostics/migrate02-3a7-4-1' &&
+      github.event.before == 'cb06bcfb14f444c3f3d02596961f3d002317e0d8' &&
+      github.run_attempt == '1'
+    uses: ./.github/workflows/migrate02-segmented-recovery.yml
+    with:
+      authorization: RUN_ONE_SEGMENT
+      source_artifact_id: '15049826258'
+      source_sha256: ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671
+      source_run_id: '45669533453'
+      source_head_sha: 4cccbfe0c787e69eda0ef76d246a756fd34ed312
+      prior_passed: 1321
+      prior_history: 1324
+      batch_limit: 1
