@@ -12,7 +12,9 @@ export const Route = createFileRoute("/intent/$slug")({
     return result.data;
   },
   head: ({ loaderData }) =>
-    toTanStackHead(searchIntentMetadata(loaderData.intent, loaderData.pillar)),
+    loaderData
+      ? toTanStackHead(searchIntentMetadata(loaderData.intent, loaderData.pillar))
+      : {},
   component: IntentRoute,
 });
 
