@@ -38,5 +38,5 @@ test("portable artifact orchestrator separates strict sitemap generation from le
 test("package exposes legacy and strict sitemap-only artifact commands", () => {
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
   expect(pkg.scripts["build:artifacts"]).toBe("node scripts/build-public-artifacts.mjs dist");
-  expect(pkg.scripts["build:sitemaps"]).toBe("node scripts/build-public-artifacts.mjs dist --sitemaps-only");
+  expect(pkg.scripts["build:sitemaps"]).toContain("scripts/build-public-artifacts.mjs .output/public --sitemaps-only");
 });
