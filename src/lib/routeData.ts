@@ -344,7 +344,10 @@ export async function loadTopicRouteData(
   type TopicArticleJoinRow = { articles: (TopicRouteArticle & { published?: boolean }) | null };
   const articles = ((at || []) as unknown as TopicArticleJoinRow[])
     .map((row) => row.articles)
-    .filter((article) => article && article.published)
+    .filter(
+      (article): article is TopicRouteArticle & { published?: boolean } =>
+        Boolean(article?.published),
+    )
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   let hero = topicData.hero_article_id
