@@ -12,9 +12,11 @@ export const Route = createFileRoute("/topic/$slug")({
     return result.data;
   },
   head: ({ loaderData }) =>
-    toTanStackHead(
-      topicMetadata(loaderData.topic, loaderData.articles, loaderData.hero, loaderData.entities),
-    ),
+    loaderData
+      ? toTanStackHead(
+          topicMetadata(loaderData.topic, loaderData.articles, loaderData.hero, loaderData.entities),
+        )
+      : {},
   component: TopicRoute,
 });
 
