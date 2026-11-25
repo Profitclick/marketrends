@@ -1,0 +1,20 @@
+name: MIGRATE-01 inventory
+on:
+  push:
+    branches: [feat/tanstack-migration]
+    paths: [.github/workflows/migrate01-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Router imports
+        run: grep -RIn --include='*.ts' --include='*.tsx' 'react-router-dom' src || true
+      - name: Helmet imports
+        run: grep -RIn --include='*.ts' --include='*.tsx' 'react-helmet' src || true
+      - name: Browser APIs
+        run: grep -RInE --include='*.ts' --include='*.tsx' '\\b(window|document|localStorage|sessionStorage|navigator|location|history|matchMedia|ResizeObserver|IntersectionObserver)\\b' src || true
+      - name: Existing route hooks
+        run: grep -RInE --include='*.ts' --include='*.tsx' '\\b(Link|NavLink|useParams|useLocation|useNavigate|Navigate|BrowserRouter|Routes|Route)\\b' src || true
