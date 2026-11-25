@@ -11,7 +11,8 @@ export const Route = createFileRoute("/fintech")({
     if (result.status !== "found") throw notFound();
     return result.data;
   },
-  head: ({ loaderData }) => toTanStackHead(clusterMetadata(loaderData.cluster)),
+  head: ({ loaderData }) =>
+    loaderData ? toTanStackHead(clusterMetadata(loaderData.cluster)) : {},
   component: FintechRoute,
 });
 
