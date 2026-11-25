@@ -1,0 +1,50 @@
+name: MIGRATE-01 local HTTP truth
+on:
+  push:
+    branches: [feat/tanstack-migration]
+    paths: [.github/workflows/migrate01-http.yml]
+permissions:
+  contents: read
+jobs:
+  http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/tanstack-migration
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Clean install
+        run: npm ci --no-audit --no-fund
+      - name: Build Nitro server
+        run: npm run build
+      - name: Start local Nitro
+        run: |
+          PORT=3000 HOST=127.0.0.1 node .output/server/index.mjs >/tmp/marketrends-nitro.log 2>&1 &
+          echo $! >/tmp/marketrends-nitro.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/marketrends-nitro.log
+          exit 1
+      - name: AUDIT-01 local HTTP matrix
+        env:
+          MARKETRENDS_AUDIT_ORIGIN: http://127.0.0.1:3000
+        run: node scripts/seo-http-audit.mjs
+      - name: Valid sitemap route parity
+        env:
+          MARKETRENDS_AUDIT_ORIGIN: http://127.0.0.1:3000
+        run: node scripts/ssr-http-parity.mjs
+      - name: Preserve server log on failure
+        if: failure()
+        run: cat /tmp/marketrends-nitro.log || true
+      - name: Stop local Nitro
+        if: always()
+        run: |
+          test -f /tmp/marketrends-nitro.pid && kill $(cat /tmp/marketrends-nitro.pid) || true
