@@ -24,6 +24,17 @@ node --test --experimental-test-coverage scripts/full-sitemap-checkpoint.test.mj
 
 Node v24.22.3 rapporterte 48 beståtte tester uten feil eller hoppede tester. Samlet dekning i Node-testprosessen var 74,69 % linjer, 89,72 % grener og 88,89 % funksjoner. Målingen inkluderer ikke kode som bare kjøres i subprocessene. `actionlint` og `git diff --check` besto.
 
-Frosset kildeartifact `15049826258` tilhører Actions-run `45669533453`. ZIP-arkivet pakket ut uten feil. Den nedlastede ZIP-ens SHA-256 var `ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671`. Kilden hadde 1 321 beståtte URL-er og 1 324 journalrader. Denne verifiseringen opprettet ingen workflow-kjøring eller nytt Actions-artifact.
+Frosset kildeartifact `15049826258` tilhører Actions-run `45669533453`. ZIP-arkivet pakket ut uten feil. Den nedlastede ZIP-ens SHA-256 var `ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671`. Kilden hadde 1 321 beståtte URL-er og 1 324 journalrader. Den lokale verifiseringen opprettet ingen workflow-kjøring eller nytt Actions-artifact.
 
-**Første live-segment har NO-GO.** Offline-testene dekker registeret mot en lokal Git-server og stopplogikken med dummyprosesser. Skriveadgangen for callerens GitHub Actions-token til registernavnerommet og samspillet med det isolerte SSR-miljøet gjenstår å verifisere under en separat godkjent kjøring.
+## Verifisering på GitHub Actions
+
+| Fase | Commit | Run-ID | Artifact-ID | Verifisert ZIP SHA-256 |
+| --- | --- | --- | --- | --- |
+| Reservasjonskonkurranse og karantene | `c43d6085de9034dd0b4c4a27c9a512ad39bce294` | [45703574107](https://github.com/Profitclick/marketrends/actions/runs/45703574107) | [15063219195](https://github.com/Profitclick/marketrends/actions/runs/45703574107/artifacts/15063219195) | `acc133c98c552e822e0a08e8e41775cc89f72156cb9aa35e7c0d21c00985bfdc` |
+| Avslag på gjenbruk i separat kjøring | `6ea0a393b3afe0e6498acbfd1db84fcc5e97ad72` | [45703690298](https://github.com/Profitclick/marketrends/actions/runs/45703690298) | [15064685949](https://github.com/Profitclick/marketrends/actions/runs/45703690298/artifacts/15064685949) | `1d1122d97012cfc790b4940d3996fa53a42d81692dc6f033fdba8f8bc1d7bd0f` |
+
+Begge kjøringer verifiserte kildeartifactets SHA-256 og besto 48 tester med null feil, null hoppede tester og null SSR-prober. Siste Node-rapport målte 74,69 % linjer, 89,79 % grener og 88,89 % funksjoner i testprosessen. ZIP-filene for begge kjøringer ble lastet ned og kontrollert separat.
+
+Ett av to samtidige reservasjonsforsøk med Actions-tokenet vant på den syntetiske ref-en. Eierkjøringen satte den til `QUARANTINE`. Den andre Actions-kjøringen fikk avslag og bekreftet terminal commit `5e2be3db6264e5fc2ae4aab74386b3fdde1e6b8f`. Det frosne kildecheckpointets registernøkkel hadde ingen tilsvarende ref etter verifiseringen. `main` sto fortsatt på `71b3410d61b9a286845b2347a6fe35745396abbe` og `feat/tanstack-migration` på `091837a1a5b1ed2be2c41fcba2d6032f2dfc3395`.
+
+**Offline-gate PASS. Første live-segment krever separat godkjenning.** Samspillet med den isolerte SSR-kjøretiden kan verifiseres i den første godkjente kjøringen. Foreslått omfang er én URL fra kildeartifact `15049826258`.
