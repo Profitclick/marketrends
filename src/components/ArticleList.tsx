@@ -37,7 +37,7 @@ export const ArticleList = ({ onUpdate }: ArticleListProps) => {
         .limit(50);
 
       if (error) throw error;
-      setArticles(data || []);
+      setArticles((data || []).map((article) => ({ ...article, tags: article.tags || [] })));
     } catch (error) {
       console.error("Error fetching articles:", error);
       toast.error("Failed to fetch articles");
