@@ -17,7 +17,14 @@ const routes = [
   { id: 'legacy_cluster', url: `${AUDIT}/cluster/ai`, kind: 'redirect', target: `${AUDIT}/ai` },
   { id: 'unknown_ressurser', url: `${AUDIT}/ressurser/${S}`, kind: 'not_found', advisory: true },
   { id: 'sitemap_index', url: `${AUDIT}/sitemap-index.xml`, kind: 'sitemap_index' },
-  { id: 'worker_news', url: NEWS, kind: 'news_worker' },
+  {
+    id: 'worker_news',
+    url: NEWS,
+    kind: 'news_worker',
+    // The dedicated Worker is outside a non-production frontend preview.
+    // Keep it blocking only when auditing the canonical production origin.
+    advisory: AUDIT !== ORIGIN,
+  },
   { id: 'legacy_news', url: `${AUDIT}/sitemap-news.xml`, kind: 'news_legacy', advisory: true },
 ];
 const BAD_CANON = /lovable\.app|lovableproject\.com|workers\.dev|supabase\.co/i;
