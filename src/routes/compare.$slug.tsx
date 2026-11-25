@@ -1,9 +1,8 @@
-import { ClientOnly, createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import ComparePage from "@/pages/ComparePage";
 import { getCompareRouteData } from "@/lib/routeServer";
 import { compareMetadata } from "@/lib/routeMetadata";
 import { toTanStackHead } from "@/lib/routeHead";
-import { CompareRouteShell } from "@/components/ssr/RouteShells";
 
 export const Route = createFileRoute("/compare/$slug")({
   loader: async ({ params }) => {
@@ -17,9 +16,5 @@ export const Route = createFileRoute("/compare/$slug")({
 
 function CompareRoute() {
   const page = Route.useLoaderData();
-  return (
-    <ClientOnly fallback={<CompareRouteShell page={page} />}>
-      <ComparePage />
-    </ClientOnly>
-  );
+  return <ComparePage key={page.slug} initialData={page} />;
 }

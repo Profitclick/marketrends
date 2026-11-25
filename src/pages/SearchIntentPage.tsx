@@ -17,13 +17,16 @@ import { GeoBlocks } from "@/components/GeoBlocks";
 import { PillarNav } from "@/components/PillarNav";
 import { Home, ChevronRight } from "lucide-react";
 
-export default function SearchIntentPage() {
+export default function SearchIntentPage({ initialData }: { initialData?: { intent: SearchIntentRouteIntent; pillar: SearchIntentRoutePillar | null } } = {}) {
   const { slug } = useParams<{ slug: string }>();
-  const [intent, setIntent] = useState<SearchIntentRouteIntent | null>(null);
-  const [pillar, setPillar] = useState<SearchIntentRoutePillar | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadedIntent, setIntent] = useState<SearchIntentRouteIntent | null>(null);
+  const [loadedPillar, setPillar] = useState<SearchIntentRoutePillar | null>(null);
+  const intent = initialData ? initialData.intent : loadedIntent;
+  const pillar = initialData ? initialData.pillar : loadedPillar;
+  const [loading, setLoading] = useState(!initialData);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setLoading(true);
     setIntent(null);
@@ -49,7 +52,7 @@ export default function SearchIntentPage() {
       });
 
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, initialData]);
 
 
   if (loading) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10 text-muted-foreground">Laster…</div></div>;

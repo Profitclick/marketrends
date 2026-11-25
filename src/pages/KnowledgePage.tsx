@@ -11,12 +11,14 @@ import { DiscoveryFooter } from "@/components/DiscoveryFooter";
 import { ContextualLinks } from "@/components/ContextualLinks";
 import { Home, ChevronRight } from "lucide-react";
 
-export default function KnowledgePage() {
+export default function KnowledgePage({ initialData }: { initialData?: KnowledgeRoutePage } = {}) {
   const { slug } = useParams<{ slug: string }>();
-  const [page, setPage] = useState<KnowledgeRoutePage | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadedPage, setPage] = useState<KnowledgeRoutePage | null>(null);
+  const page = initialData ?? loadedPage;
+  const [loading, setLoading] = useState(!initialData);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setLoading(true);
     setPage(null);
@@ -36,7 +38,7 @@ export default function KnowledgePage() {
       });
 
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, initialData]);
 
   if (loading) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10 text-muted-foreground">Laster…</div></div>;
   if (!page) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10">Siden finnes ikke.</div></div>;

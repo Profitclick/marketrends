@@ -9,12 +9,14 @@ import { SEOHead } from "@/components/SEOHead";
 import { ArticleContent } from "@/components/ArticleContent";
 import { Home, ChevronRight, Check, X } from "lucide-react";
 
-export default function ComparePage() {
+export default function ComparePage({ initialData }: { initialData?: CompareRoutePage } = {}) {
   const { slug } = useParams<{ slug: string }>();
-  const [page, setPage] = useState<CompareRoutePage | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadedPage, setPage] = useState<CompareRoutePage | null>(null);
+  const page = initialData ?? loadedPage;
+  const [loading, setLoading] = useState(!initialData);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setLoading(true);
     setPage(null);
@@ -34,7 +36,7 @@ export default function ComparePage() {
       });
 
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, initialData]);
 
   if (loading) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10 text-muted-foreground">Laster…</div></div>;
   if (!page) return <div className="min-h-dvh bg-background"><Navigation /><div className="max-w-3xl mx-auto p-10">Siden finnes ikke.</div></div>;

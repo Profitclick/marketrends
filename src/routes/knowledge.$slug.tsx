@@ -1,9 +1,8 @@
-import { ClientOnly, createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import KnowledgePage from "@/pages/KnowledgePage";
 import { getKnowledgeRouteData } from "@/lib/routeServer";
 import { knowledgeMetadata } from "@/lib/routeMetadata";
 import { toTanStackHead } from "@/lib/routeHead";
-import { KnowledgeRouteShell } from "@/components/ssr/RouteShells";
 
 export const Route = createFileRoute("/knowledge/$slug")({
   loader: async ({ params }) => {
@@ -17,9 +16,5 @@ export const Route = createFileRoute("/knowledge/$slug")({
 
 function KnowledgeRoute() {
   const page = Route.useLoaderData();
-  return (
-    <ClientOnly fallback={<KnowledgeRouteShell page={page} />}>
-      <KnowledgePage />
-    </ClientOnly>
-  );
+  return <KnowledgePage key={page.slug} initialData={page} />;
 }

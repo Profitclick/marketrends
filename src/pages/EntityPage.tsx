@@ -20,11 +20,13 @@ const typeLabel: Record<string, string> = {
   cryptocurrency: "Kryptovaluta", asset: "Eiendel", government: "Myndighet",
 };
 
-const TopicPageInner = ({ slug }: { slug: string }) => {
-  const [entity, setEntity] = useState<EntityRouteEntity | null>(null);
+const TopicPageInner = ({ slug, initialData }: { slug: string; initialData?: EntityRouteEntity }) => {
+  const [loadedEntity, setEntity] = useState<EntityRouteEntity | null>(null);
+  const entity = initialData ?? loadedEntity;
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setNotFound(false);
     setEntity(null);
@@ -43,7 +45,7 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
       });
 
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, initialData]);
 
   if (notFound) {
     return (
@@ -219,10 +221,10 @@ const TopicPageInner = ({ slug }: { slug: string }) => {
   );
 };
 
-const EntityPage = () => {
+const EntityPage = ({ initialData }: { initialData?: { entity: EntityRouteEntity } } = {}) => {
   const { slug } = useParams<{ slug: string }>();
   if (!slug) return null;
-  return <TopicPageInner slug={slug} />;
+  return <TopicPageInner slug={slug} initialData={initialData?.entity} />;
 };
 
 export default EntityPage;
