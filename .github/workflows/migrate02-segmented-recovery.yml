@@ -68,7 +68,7 @@ jobs:
           echo "SEGMENT_RAW_LOG=$RUNNER_TEMP/segment-runtime.raw.log" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
-          ref: 6f36fdd87b0c5ff9c0a940ff952693bc4a8f8d91
+          ref: b27edc8b163cf76f201fc4c07474f3c7b6cd3f17
           path: guard-src
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -106,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
-          test "$(git -C ../guard-src rev-parse HEAD)" = 6f36fdd87b0c5ff9c0a940ff952693bc4a8f8d91
+          test "$(git -C ../guard-src rev-parse HEAD)" = b27edc8b163cf76f201fc4c07474f3c7b6cd3f17
           node --test scripts/full-sitemap-checkpoint.test.mjs
           SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segmented-recovery-guard.test.mjs
           node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
