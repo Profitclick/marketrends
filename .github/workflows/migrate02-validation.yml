@@ -1,0 +1,58 @@
+name: MIGRATE-02 release regression
+on:
+  push:
+    branches: [feat/tanstack-migration]
+    paths: [.github/workflows/migrate02-validation.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npx tsc -p tsconfig.node.json --noEmit
+      - name: Deterministic tests
+        run: |
+          find scripts -maxdepth 1 \( -name '*.test.ts' -o -name '*.test.mjs' -o -name '*.test.js' \) ! -name 'production-access.test.ts' -print0 | xargs -0 bun test
+      - name: Build
+        run: npm run build
+      - name: Start isolated SSR
+        run: |
+          cp .env .output/server/.dev.vars
+          npx --yes wrangler@4.168.0 dev --config .output/server/wrangler.json --no-bundle --ip 127.0.0.1 --port 3000 >/tmp/marketrends-nitro.log 2>&1 &
+          echo $! >/tmp/marketrends-nitro.pid
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: HTTP audit
+        env:
+          MARKETRENDS_AUDIT_ORIGIN: http://127.0.0.1:3000
+        run: node scripts/seo-http-audit.mjs
+      - name: Sitemap representative parity
+        env:
+          MARKETRENDS_AUDIT_ORIGIN: http://127.0.0.1:3000
+        run: node scripts/ssr-http-parity.mjs
+      - name: Browser regression
+        env:
+          MARKETRENDS_AUDIT_ORIGIN: http://127.0.0.1:3000
+        run: |
+          mkdir -p /tmp/marketrends-browser
+          npm install --prefix /tmp/marketrends-browser --no-audit --no-fund playwright@1.56.1
+          /tmp/marketrends-browser/node_modules/.bin/playwright install --with-deps chromium
+          cp scripts/migrate02-browser.mjs /tmp/marketrends-browser/test.mjs
+          node /tmp/marketrends-browser/test.mjs
+      - name: Stop isolated server
+        if: always()
+        run: |
+          test -f /tmp/marketrends-nitro.pid && kill $(cat /tmp/marketrends-nitro.pid) || true
