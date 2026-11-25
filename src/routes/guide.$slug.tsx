@@ -11,7 +11,7 @@ export const Route = createFileRoute("/guide/$slug")({
     if (result.status !== "found") throw notFound();
     return result.data;
   },
-  head: ({ loaderData }) => toTanStackHead(guideMetadata(loaderData)),
+  head: ({ loaderData }) => loaderData ? toTanStackHead(guideMetadata(loaderData)) : {},
   component: GuideRoute,
 });
 
