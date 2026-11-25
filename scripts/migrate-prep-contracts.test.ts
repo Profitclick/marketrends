@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import fs from "node:fs";
-import { getAuthorForArticle } from "../src/utils/authors";
 import { articleMetadata, clusterMetadata } from "../src/lib/routeMetadata";
 import { getCluster } from "../src/config/clusters";
 import type { RouteArticle } from "../src/lib/routeData";
@@ -22,20 +21,14 @@ const article: RouteArticle = {
 };
 
 describe("article SSR preparation contracts", () => {
-  test("author selection is stable for the same article key", () => {
-    const first = getAuthorForArticle(article.id);
-    const second = getAuthorForArticle(article.id);
-    expect(first).toEqual(second);
-    expect(first.role).not.toBe("Ansvarlig redaktør");
-  });
 
   test("article metadata is production-canonical and complete", () => {
-    const author = getAuthorForArticle(article.id);
-    const meta = articleMetadata(article, author, 0);
+    const meta = articleMetadata(article);
 
     expect(meta.canonicalUrl).toBe("https://marketrends.no/testartikkel");
     expect(meta.ogType).toBe("article");
-    expect(meta.author).toBe(author.name);
+    expect(meta.author).toBe("Marketrends.no");
+    expect(meta.articleSchema).toMatchObject({ author: { "@type": "Organization", name: "Marketrends.no" }, isBasedOn: article.source_url });
     expect(meta.publishedTime).toBe(article.created_at);
     expect(meta.modifiedTime).toBe(article.updated_at);
     expect(meta.articleSchema).toBeTruthy();

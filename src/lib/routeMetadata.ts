@@ -1,5 +1,5 @@
 import { generateArticleSchema, getCategoryFallbackImage } from "@/utils/seo";
-import type { Author } from "@/utils/authors";
+
 import type { ClusterConfig } from "@/config/clusters";
 import type {
   CategoryDefinition,
@@ -52,11 +52,10 @@ export function homepageMetadata(): RouteSeoMetadata {
 
 export function articleMetadata(
   article: RouteArticle,
-  author: Author,
-  articleIndex = 0,
+
 ): RouteSeoMetadata {
   const canonicalUrl = `${SITE_URL}/${article.slug}`;
-  const image = article.image_url || getCategoryFallbackImage(article.category, articleIndex);
+  const image = article.image_url || getCategoryFallbackImage(article.category, 0);
   const description = article.meta_description || article.title;
   const wordCount = article.content.split(/\s+/).filter((word) => word.length > 0).length;
 
@@ -68,7 +67,7 @@ export function articleMetadata(
     ogType: "article",
     publishedTime: article.created_at,
     modifiedTime: article.updated_at || article.created_at,
-    author: author.name,
+    author: "Marketrends.no",
     section: article.category,
     tags: article.tags || [],
     breadcrumbs: [
@@ -84,12 +83,14 @@ export function articleMetadata(
       description,
       image,
       url: canonicalUrl,
-      author: author.name,
+      author: "Marketrends.no",
       publishedTime: article.created_at,
       modifiedTime: article.updated_at || article.created_at,
       category: article.category,
       tags: article.tags || [],
       wordCount,
+      sourceUrl: article.source_url,
+      authorType: "Organization",
     }),
   };
 }

@@ -4,6 +4,8 @@ export interface ArticleSEO {
   image?: string;
   url: string;
   author: string;
+  authorType?: "Person" | "Organization";
+  sourceUrl?: string;
   publishedTime: string;
   modifiedTime?: string;
   category: string;
@@ -23,7 +25,7 @@ const SITE_NAME = "Marketrends.no";
 
 // Generate NewsArticle schema for Google News
 export const generateArticleSchema = (article: ArticleSEO) => {
-  const wordCount = article.wordCount || 500;
+  const wordCount = article.wordCount ?? 0;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
   
   return {
@@ -37,8 +39,9 @@ export const generateArticleSchema = (article: ArticleSEO) => {
     "datePublished": article.publishedTime,
     "dateModified": article.modifiedTime || article.publishedTime,
     "author": {
-      "@type": "Person",
-      "name": article.author
+      "@type": article.authorType || "Person",
+      "name": article.author,
+      ...(article.authorType === "Organization" ? { url: SITE_URL } : {})
     },
     "publisher": {
       "@type": "Organization",
@@ -54,6 +57,7 @@ export const generateArticleSchema = (article: ArticleSEO) => {
       "@type": "WebPage",
       "@id": article.url
     },
+    ...(article.sourceUrl ? { isBasedOn: article.sourceUrl } : {}),
     "articleSection": article.category,
     "keywords": article.tags?.join(", ") || article.category,
     "wordCount": wordCount,

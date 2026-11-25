@@ -21,10 +21,8 @@ import { ContextualLinks } from "@/components/ContextualLinks";
 import { SEOHead } from "@/components/SEOHead";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Home, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
-import { nb } from "date-fns/locale";
-import { getRandomAuthor, getEditorInChief, calculateReadingTime } from "@/utils/authors";
-import { generateArticleSchema, getCategoryFallbackImage } from "@/utils/seo";
+import { calculateReadingTime } from "@/utils/authors";
+import { articleMetadata } from "@/lib/routeMetadata";
 import { logRead } from "@/lib/readingHistory";
 
 interface Article {
@@ -63,13 +61,12 @@ interface ArticleDetailViewProps {
 }
 
 export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewProps) => {
-  const author = getRandomAuthor();
-  const editor = getEditorInChief();
+  // Existing prerender credits the publication, not an unverified individual.
+  const author = { id: "marketrends", name: "Marketrends.no", role: "Redaksjon", image: "", bio: "" };
   const readingTime = calculateReadingTime(article.content);
-  const articleIndex = allArticles.findIndex((a) => a.id === article.id);
-  const articleImage = article.image_url || getCategoryFallbackImage(article.category, articleIndex);
-  const canonicalUrl = `${BASE_URL}/${article.slug}`;
-  const wordCount = article.content.split(/\s+/).filter((w) => w.length > 0).length;
+  const seo = articleMetadata(article);
+  const articleImage = seo.ogImage;
+  const canonicalUrl = seo.canonicalUrl;
   const primarySourceHost = sourceHostname(article.source_url);
   // The primary source_url is authoritative for the original article. Keep only
   // genuinely supplemental archived sources; conflicting URLs from the same
@@ -89,18 +86,7 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
     });
   }, [article.id, article.slug, article.category, article.title]);
 
-  const articleSchema = generateArticleSchema({
-    title: article.title,
-    description: article.meta_description || article.title,
-    image: articleImage,
-    url: canonicalUrl,
-    author: author.name,
-    publishedTime: article.created_at,
-    modifiedTime: article.created_at,
-    category: article.category,
-    tags: article.tags,
-    wordCount,
-  });
+  const articleSchema = seo.articleSchema;
 
   const relatedArticles = allArticles
     .filter((a) => a.id !== article.id && a.category === article.category)
@@ -176,7 +162,7 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
 
             <AuthorByline
               author={author}
-              date={format(new Date(article.created_at), "d. MMMM yyyy, HH:mm", { locale: nb })}
+              date={new Intl.DateTimeFormat("nb-NO", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Oslo" }).format(new Date(article.created_at))}
               readingTime={readingTime}
               category={article.category}
             />
@@ -264,7 +250,7 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
 
             <div className="border-t border-border pt-6 text-sm text-muted-foreground">
               <p>
-                Redigert av <strong className="text-foreground">{editor.name}</strong> – {editor.role}
+                Publisert av <strong className="text-foreground">Marketrends.no</strong>
               </p>
             </div>
 
