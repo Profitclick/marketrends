@@ -6,6 +6,7 @@ import {
   type TopicRouteArticle,
   type TopicRouteEntity,
   type TopicRouteTopic,
+  type TopicRouteData,
 } from "@/lib/routeData";
 import { topicMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
@@ -24,17 +25,18 @@ import { getDisplayedTopicArticleCount } from "@/utils/topicCounts";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 
-const TopicPage = () => {
+const TopicPage = ({ initialData }: { initialData?: TopicRouteData } = {}) => {
   const { slug } = useParams();
-  const [topic, setTopic] = useState<TopicRouteTopic | null>(null);
-  const [articles, setArticles] = useState<TopicRouteArticle[]>([]);
-  const [hero, setHero] = useState<TopicRouteArticle | null>(null);
-  const [explainer, setExplainer] = useState<TopicRouteArticle | null>(null);
-  const [entities, setEntities] = useState<TopicRouteEntity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [topic, setTopic] = useState<TopicRouteTopic | null>(initialData?.topic ?? null);
+  const [articles, setArticles] = useState<TopicRouteArticle[]>(initialData?.articles ?? []);
+  const [hero, setHero] = useState<TopicRouteArticle | null>(initialData?.hero ?? null);
+  const [explainer, setExplainer] = useState<TopicRouteArticle | null>(initialData?.explainer ?? null);
+  const [entities, setEntities] = useState<TopicRouteEntity[]>(initialData?.entities ?? []);
+  const [loading, setLoading] = useState(!initialData);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setLoading(true);
     setNotFound(false);
@@ -70,7 +72,7 @@ const TopicPage = () => {
       });
 
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, initialData]);
 
   if (loading) {
     return (

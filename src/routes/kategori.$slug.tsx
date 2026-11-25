@@ -1,9 +1,8 @@
-import { ClientOnly, createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import CategoryPage from "@/pages/CategoryPage";
 import { getCategoryRouteData } from "@/lib/routeServer";
 import { categoryMetadata } from "@/lib/routeMetadata";
 import { toTanStackHead } from "@/lib/routeHead";
-import { CategoryRouteShell } from "@/components/ssr/RouteShells";
 
 export const Route = createFileRoute("/kategori/$slug")({
   loader: async ({ params }) => {
@@ -18,9 +17,5 @@ export const Route = createFileRoute("/kategori/$slug")({
 
 function CategoryRoute() {
   const data = Route.useLoaderData();
-  return (
-    <ClientOnly fallback={<CategoryRouteShell data={data} />}>
-      <CategoryPage />
-    </ClientOnly>
-  );
+  return <CategoryPage key={data.category.name} initialData={data} />;
 }

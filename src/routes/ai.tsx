@@ -1,9 +1,8 @@
-import { ClientOnly, createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import ClusterPage from "@/pages/ClusterPage";
 import { getClusterRouteData } from "@/lib/routeServer";
 import { clusterMetadata } from "@/lib/routeMetadata";
 import { toTanStackHead } from "@/lib/routeHead";
-import { ClusterRouteShell } from "@/components/ssr/RouteShells";
 
 export const Route = createFileRoute("/ai")({
   loader: async () => {
@@ -18,9 +17,5 @@ export const Route = createFileRoute("/ai")({
 
 function AiRoute() {
   const data = Route.useLoaderData();
-  return (
-    <ClientOnly fallback={<ClusterRouteShell data={data} />}>
-      <ClusterPage overrideSlug="ai" />
-    </ClientOnly>
-  );
+  return <ClusterPage key={data.cluster.slug} overrideSlug="ai" initialData={data} />;
 }

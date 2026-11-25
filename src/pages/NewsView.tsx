@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { loadNewsRouteData, type RouteArticle } from "@/lib/routeData";
+import { loadNewsRouteData, type RouteArticle, type NewsRouteData } from "@/lib/routeData";
 import { homepageMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { MarketTicker } from "@/components/MarketTicker";
@@ -56,13 +56,14 @@ const HomepageSkeleton = () => (
   </div>
 );
 
-const NewsView = () => {
+const NewsView = ({ initialData }: { initialData?: NewsRouteData } = {}) => {
   const { slug } = useParams();
-  const [articles, setArticles] = useState<RouteArticle[]>([]);
-  const [selectedArticle, setSelectedArticle] = useState<RouteArticle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [articles, setArticles] = useState<RouteArticle[]>(initialData?.articles ?? []);
+  const [selectedArticle, setSelectedArticle] = useState<RouteArticle | null>(initialData?.selectedArticle ?? null);
+  const [loading, setLoading] = useState(!initialData);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setLoading(true);
     setSelectedArticle(null);
@@ -90,7 +91,7 @@ const NewsView = () => {
       });
 
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, initialData]);
 
   useEffect(() => {
     const channel = supabase

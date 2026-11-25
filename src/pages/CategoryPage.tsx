@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { CATEGORY_MAP, loadCategoryRouteData, type CategoryArticle } from "@/lib/routeData";
+import { CATEGORY_MAP, loadCategoryRouteData, type CategoryArticle, type CategoryRouteData } from "@/lib/routeData";
 import { categoryMetadata } from "@/lib/routeMetadata";
 import { Navigation } from "@/components/Navigation";
 import { NewsFooter } from "@/components/NewsFooter";
@@ -17,17 +17,18 @@ import { resolveArticleImages } from "@/utils/articleImages";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 
-export default function CategoryPage() {
+export default function CategoryPage({ initialData }: { initialData?: CategoryRouteData } = {}) {
   const { slug } = useParams<{ slug: string }>();
-  const [articles, setArticles] = useState<CategoryArticle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isFallback, setIsFallback] = useState(false);
+  const [articles, setArticles] = useState<CategoryArticle[]>(initialData?.articles ?? []);
+  const [loading, setLoading] = useState(!initialData);
+  const [isFallback, setIsFallback] = useState(initialData?.isFallback ?? false);
 
   const categoryInfo = slug ? CATEGORY_MAP[slug] : null;
   const categoryName = categoryInfo?.name || "Nyheter";
   const articleImages = useMemo(() => resolveArticleImages(articles), [articles]);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setLoading(true);
 
@@ -54,7 +55,7 @@ export default function CategoryPage() {
       });
 
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, initialData]);
 
   const heroArticle = articles[0];
   const sideArticles = articles.slice(1, 5);

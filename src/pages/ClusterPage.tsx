@@ -10,6 +10,7 @@ import { DiscoveryFooter } from "@/components/DiscoveryFooter";
 import { AuthorityBadge } from "@/components/AuthorityBadge";
 import { ContextualLinks } from "@/components/ContextualLinks";
 import { getCluster, CLUSTERS } from "@/config/clusters";
+import { loadClusterRouteData, type ClusterRouteData } from "@/lib/routeData";
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <section className="border-t border-border pt-8 mt-12">
@@ -18,54 +19,29 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
   </section>
 );
 
-const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
+const ClusterPage = ({ overrideSlug, initialData }: { overrideSlug?: string; initialData?: ClusterRouteData } = {}) => {
   const params = useParams<{ slug: string }>();
   const slug = overrideSlug || params.slug;
   const cluster = slug ? getCluster(slug) : null;
-  const [stats, setStats] = useState<any>(null);
-  const [articles, setArticles] = useState<any[]>([]);
-  const [topics, setTopics] = useState<any[]>([]);
-  const [entities, setEntities] = useState<any[]>([]);
-  const [guides, setGuides] = useState<any[]>([]);
-  const [knowledge, setKnowledge] = useState<any[]>([]);
-  const [comparisons, setComparisons] = useState<any[]>([]);
-  const [opps, setOpps] = useState<any[]>([]);
+  const [loadedData, setLoadedData] = useState<ClusterRouteData | null>(null);
+  const data = initialData ?? loadedData;
+  const stats = data?.stats ?? null;
+  const articles = data?.articles ?? [];
+  const topics = data?.topics ?? [];
+  const entities = data?.entities ?? [];
+  const guides = data?.guides ?? [];
+  const knowledge = data?.knowledge ?? [];
+  const comparisons = data?.comparisons ?? [];
+  const opps: { id: string; keyword: string; recommended_content_type: string; opportunity_score: number }[] = [];
 
   useEffect(() => {
-    if (!cluster) return;
-    (async () => {
-      // Cluster membership comes from the canonical layer (article_clusters), never articles.category.
-      const sb = supabase as any;
-      const def = await sb.from("cluster_definitions").select("guide_categories").eq("slug", cluster.slug).maybeSingle();
-      const guideCats: string[] = def.data?.guide_categories || [];
-      const seeds = await sb.from("cluster_seed_nodes").select("node_type, node_id").eq("cluster_slug", cluster.slug).limit(2000);
-      const seedEntityIds = (seeds.data || []).filter((s: any) => s.node_type === "entity").map((s: any) => s.node_id);
-      const seedTopicIds = (seeds.data || []).filter((s: any) => s.node_type === "topic").map((s: any) => s.node_id);
-      const a = await sb.from("articles").select("*, article_clusters!inner(cluster_slug)")
-        .eq("article_clusters.cluster_slug", cluster.slug).eq("published", true)
-        .order("created_at", { ascending: false }).limit(8);
-      const t = await sb.from("topics").select("id, name, slug, authority_score, trending_score, article_count")
-        .in("id", seedTopicIds.slice(0, 120)).order("article_count", { ascending: false }).limit(8);
-      const e = await sb.from("entities").select("id, name, slug, authority_score, mention_count")
-        .in("id", seedEntityIds.slice(0, 120)).order("mention_count", { ascending: false }).limit(8);
-      const g = guideCats.length
-        ? await sb.from("guides").select("slug, title, summary").eq("published", true).in("category", guideCats).limit(6)
-        : { data: [] };
-      const k = await sb.from("knowledge_pages").select("slug, title, summary, topic_id, entity_id").eq("published", true).limit(200);
-      const c = await sb.from("comparison_pages").select("slug, title, summary, entity_a_id, entity_b_id").eq("published", true).limit(200);
-      const s = await sb.from("cluster_stats").select("*").eq("slug", cluster.slug).maybeSingle();
-      const ent = new Set(seedEntityIds);
-      const top = new Set(seedTopicIds);
-      setArticles(a.data || []);
-      setTopics(t.data || []);
-      setEntities(e.data || []);
-      setGuides(g.data || []);
-      setKnowledge((k.data || []).filter((x: any) => top.has(x.topic_id) || ent.has(x.entity_id)).slice(0, 6));
-      setComparisons((c.data || []).filter((x: any) => ent.has(x.entity_a_id) || ent.has(x.entity_b_id)).slice(0, 6));
-      setStats(s.data);
-      setOpps([]);
-    })();
-  }, [cluster?.slug]);
+    if (initialData || !slug) return;
+    let cancelled = false;
+    loadClusterRouteData(supabase, slug).then((result) => {
+      if (!cancelled && result.status === "found") setLoadedData(result.data);
+    }).catch((error) => console.error("Error loading cluster route:", error));
+    return () => { cancelled = true; };
+  }, [slug, initialData]);
 
   if (!cluster) {
     return (
@@ -166,14 +142,6 @@ const ClusterPage = ({ overrideSlug }: { overrideSlug?: string } = {}) => {
               </details>
             ))}
           </div>
-          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "FAQPage",
-            mainEntity: cluster.faq.map((f) => ({
-              "@type": "Question", name: f.q,
-              acceptedAnswer: { "@type": "Answer", text: f.a },
-            })),
-          }) }} />
         </Section>
 
         {opps.length > 0 && (

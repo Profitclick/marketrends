@@ -1,9 +1,8 @@
-import { ClientOnly, createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import NewsView from "@/pages/NewsView";
 import { getNewsRouteData } from "@/lib/routeServer";
 import { homepageMetadata } from "@/lib/routeMetadata";
 import { toTanStackHead } from "@/lib/routeHead";
-import { HomepageRouteShell } from "@/components/ssr/RouteShells";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -17,9 +16,5 @@ export const Route = createFileRoute("/")({
 
 function HomeRoute() {
   const data = Route.useLoaderData();
-  return (
-    <ClientOnly fallback={<HomepageRouteShell data={data} />}>
-      <NewsView />
-    </ClientOnly>
-  );
+  return <NewsView initialData={data} />;
 }
