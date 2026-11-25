@@ -6,6 +6,7 @@ import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { SITE_URL, NEWS_SITEMAP_URL } from "./sitemap-lib.mjs";
+import { openCheckpoint, createCheckpoint, auditRevision, batchLimit } from "./full-sitemap-checkpoint.mjs";
 
 const LOCAL = "http://127.0.0.1:3000";
 const OUTPUT = "seo-audit/full-sitemap";
@@ -116,94 +117,124 @@ function quantile(values, q) {
 }
 
 async function main() {
-  if (process.env.MARKETRENDS_AUDIT_ORIGIN !== LOCAL) throw Error("Refusing non-isolated origin");
-  fs.mkdirSync(OUTPUT, { recursive: true });
-  const started = new Date().toISOString();
-  const rows = [], entries = [], sitemaps = [], seen = new Set(), duplicateUrls = [];
-  let stopReason = null, lastStart = 0, consecutive = 0, transients = 0;
-  const resultPath = OUTPUT + "/results.jsonl";
-  fs.writeFileSync(resultPath, "");
-  async function get(path) {
-    const wait = INTERVAL_MS - (performance.now() - lastStart);
-    if (wait > 0) await delay(wait);
-    lastStart = performance.now();
-    const response = await fetch(LOCAL + path, {
-      redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "user-agent": "MarketrendsIsolatedReleaseAudit/1.0", accept: "text/html,application/xml,text/xml" },
-    });
-    const ttfbMs = Math.round(performance.now() - lastStart);
-    const body = await response.text();
-    return { response, body, ttfbMs, totalMs: Math.round(performance.now() - lastStart), bytes: Buffer.byteLength(body) };
-  }
-  async function xml(path) {
-    const r = await get(path);
-    if (r.response.status !== 200 || !/xml/i.test(r.response.headers.get("content-type") ?? "")) throw Error("Sitemap fetch failed: " + path + " HTTP " + r.response.status);
-    return r.body;
-  }
+  const origin = process.env.MARKETRENDS_AUDIT_ORIGIN;
+  if (origin !== LOCAL) throw Error("Refusing non-isolated origin");
+  const resumeFlag = process.env.MARKETRENDS_AUDIT_RESUME;
+  if (resumeFlag !== undefined && resumeFlag !== "1") throw Error("RESUME must be 1 when supplied");
+  const resume = resumeFlag === "1";
+  const legacyDir = process.env.MARKETRENDS_AUDIT_LEGACY_DIR;
+  if (resume && legacyDir) throw Error("Choose resume or legacy import, not both");
+  const limitValue = process.env.MARKETRENDS_AUDIT_BATCH_LIMIT;
+  if ((resume || legacyDir) && limitValue === undefined) throw Error("Recovery requires an explicit batch limit");
+  const summary = await runAudit({ origin, resume, legacyDir, limit: batchLimit(limitValue),
+    dir: process.env.MARKETRENDS_AUDIT_OUTPUT || OUTPUT, revision: auditRevision(!!legacyDir) });
+  console.log(JSON.stringify(summary,null,2));
+  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "\n## Full isolated sitemap audit\n\n" + "Attempted: " + summary.attempted + " / " + summary.snapshotUrls + "; passed: " + summary.passed + "; failed: " + summary.failed + "; untested: " + summary.untested + ".\n\n");
+  if (!summary.complete) process.exitCode = 1;
+}
+
+// Injected fetch/clock are for offline tests. The CLI always uses native fetch.
+export async function runAudit({ origin, dir = OUTPUT, resume = false, legacyDir, revision, limit = MAX_URLS,
+  fetcher = fetch, now = () => performance.now(), sleep = delay }) {
+  if (origin !== LOCAL) throw Error("Refusing non-isolated origin");
+  limit = batchLimit(String(limit));
+  fs.mkdirSync(dir, { recursive: true });
+  if (legacyDir && fs.realpathSync(dir) === fs.realpathSync(legacyDir)) throw Error("Legacy evidence must remain separate");
+  const lockPath = dir + "/audit.lock";
+  const lock = fs.openSync(lockPath, "wx");
   try {
-    const index = await xml("/sitemap-index.xml");
-    const indexLocs = locs(index, "sitemapindex", "sitemap");
-    if (indexLocs.filter(url => url === NEWS_SITEMAP_URL).length !== 1) throw Error("Expected exactly one dedicated news sitemap");
-    if (new Set(indexLocs).size !== indexLocs.length) throw Error("Duplicate child sitemap");
-    for (const sitemap of indexLocs) {
-      if (sitemap === NEWS_SITEMAP_URL) continue;
-      const u = exactProductionUrl(sitemap);
-      if (!/^\/sitemap-(?:pages|articles-\d+|topics|entities|knowledge|guides|comparison)\.xml$/.test(u.pathname) || u.search) throw Error("Unexpected child sitemap: " + sitemap);
-      const doc = await xml(u.pathname);
-      const urls = locs(doc, "urlset", "url");
-      sitemaps.push({ sitemap, count: urls.length, sha256: createHash("sha256").update(doc).digest("hex") });
-      for (const url of urls) {
-        exactProductionUrl(url);
-        if (seen.has(url)) { duplicateUrls.push(url); continue; }
-        seen.add(url);
-        entries.push({ url, sitemap: u.pathname, kind: kind(u.pathname, url) });
-      }
+    const started = new Date().toISOString();
+    let stopReason = null, lastStart = 0, consecutive = 0, transients = 0, batchAttempted = 0;
+    let checkpoint = openCheckpoint({ dir, resume, legacyDir, revision, limit });
+    async function get(path) {
+      const wait = INTERVAL_MS - (now() - lastStart);
+      if (wait > 0) await sleep(wait);
+      lastStart = now();
+      const response = await fetcher(LOCAL + path, {
+        redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { "user-agent": "MarketrendsIsolatedReleaseAudit/1.0", accept: "text/html,application/xml,text/xml" },
+      });
+      const ttfbMs = Math.round(now() - lastStart);
+      // Preserve overload status even when the response body cannot be read.
+      const body = response.status === 429 || response.status === 503 ? "" : await response.text();
+      return { response, body, ttfbMs, totalMs: Math.round(now() - lastStart), bytes: Buffer.byteLength(body) };
     }
-    if (!entries.length || entries.length > MAX_URLS) throw Error("Unexpected snapshot size: " + entries.length);
-    // Validate every non-article sitemap first, but include an article in the pilot.
-    const firstArticle = entries.find(entry => entry.kind === "article");
-    const ordered = [
-      ...entries.filter(entry => entry.kind === "page" || entry.kind === "kategori" || entry.kind === "intent"),
-      ...(firstArticle ? [firstArticle] : []),
-      ...entries.filter(entry => !["article","page","kategori","intent"].includes(entry.kind)),
-      ...entries.filter(entry => entry.kind === "article" && entry !== firstArticle),
-    ];
-    fs.writeFileSync(OUTPUT + "/snapshot.json", JSON.stringify({ started, sitemaps, duplicateUrls, entries: ordered }, null, 2));
+    async function xml(path) {
+      const r = await get(path);
+      if (r.response.status !== 200 || !/xml/i.test(r.response.headers.get("content-type") ?? "")) throw Error("Sitemap fetch failed: " + path + " HTTP " + r.response.status);
+      return r.body;
+    }
+    if (!checkpoint) {
+      const entries = [], sitemaps = [], seen = new Set(), duplicateUrls = [];
+      const indexLocs = locs(await xml("/sitemap-index.xml"), "sitemapindex", "sitemap");
+      if (indexLocs.filter(url => url === NEWS_SITEMAP_URL).length !== 1) throw Error("Expected exactly one dedicated news sitemap");
+      if (new Set(indexLocs).size !== indexLocs.length) throw Error("Duplicate child sitemap");
+      for (const sitemap of indexLocs) {
+        if (sitemap === NEWS_SITEMAP_URL) continue;
+        const u = exactProductionUrl(sitemap);
+        if (!/^\/sitemap-(?:pages|articles-\d+|topics|entities|knowledge|guides|comparison)\.xml$/.test(u.pathname) || u.search) throw Error("Unexpected child sitemap: " + sitemap);
+        const doc = await xml(u.pathname);
+        const urls = locs(doc, "urlset", "url");
+        sitemaps.push({ sitemap, count: urls.length, sha256: createHash("sha256").update(doc).digest("hex") });
+        for (const url of urls) {
+          exactProductionUrl(url);
+          if (seen.has(url)) { duplicateUrls.push(url); continue; }
+          seen.add(url);
+          entries.push({ url, sitemap: u.pathname, kind: kind(u.pathname, url) });
+        }
+      }
+      const firstArticle = entries.find(entry => entry.kind === "article");
+      const ordered = [
+        ...entries.filter(entry => entry.kind === "page" || entry.kind === "kategori" || entry.kind === "intent"),
+        ...(firstArticle ? [firstArticle] : []),
+        ...entries.filter(entry => !["article","page","kategori","intent"].includes(entry.kind)),
+        ...entries.filter(entry => entry.kind === "article" && entry !== firstArticle),
+      ];
+      checkpoint = createCheckpoint(dir, { started, sitemaps, duplicateUrls, entries: ordered }, revision, limit);
+    }
+    const { entries, duplicateUrls, sitemaps } = checkpoint.snapshot;
+    const priorAttempted = checkpoint.latest().length;
     console.log("Frozen snapshot: " + entries.length + " unique URLs; " + sitemaps.length + " ordinary child sitemaps; external news Worker excluded.");
-    for (const entry of ordered) {
+    // Never leave a prior summary looking complete while a batch is running.
+    fs.writeFileSync(dir + "/summary.json", JSON.stringify({ complete: false, started, revision, stopReason: "Batch in progress" }));
+    for (const entry of checkpoint.pending) {
       let row;
       try {
         const u = exactProductionUrl(entry.url);
         const r = await get(u.pathname + u.search);
         row = { ...entry, status: r.response.status, ttfbMs: r.ttfbMs, totalMs: r.totalMs, bytes: r.bytes, ...evaluate(entry, r.response.status, r.response.headers, r.body) };
       } catch (error) {
-        row = { ...entry, status: null, issues: ["FETCH_ERROR"], error: String(error.message ?? error) };
+        row = { ...entry, status: null, issues: ["FETCH_ERROR"], error: String(error.message ?? error), errorName: String(error.name ?? "Error"), elapsedMs: Math.max(0, Math.round(now() - lastStart)) };
       }
-      rows.push(row);
-      fs.appendFileSync(resultPath, JSON.stringify(row) + "\n");
+      checkpoint.record(row);
+      batchAttempted++;
       if (row.status === 429 || row.status === 503) { stopReason = "Rate-limit or unavailable response: HTTP " + row.status; break; }
       const transient = row.status === null || row.status >= 500;
       consecutive = transient ? consecutive + 1 : 0;
       if (transient) transients++;
       if (consecutive >= MAX_CONSECUTIVE_TRANSIENT || transients >= MAX_TRANSIENT) { stopReason = "Transient failure circuit breaker"; break; }
-      if (rows.length % 100 === 0) console.log("Progress " + rows.length + "/" + ordered.length + "; failed " + rows.filter(r => r.issues.length).length);
+      if (batchAttempted % 100 === 0) console.log("Batch progress " + batchAttempted + "/" + checkpoint.pending.length);
     }
-  } catch (error) { stopReason = String(error.message ?? error); }
-  const failed = rows.filter(row => row.issues.length);
-  const counts = {};
-  for (const row of rows) {
-    const c = counts[row.kind] ??= { attempted: 0, passed: 0, failed: 0, ttfb: [], total: [], bytes: [] };
-    c.attempted++;
-    c[row.issues.length ? "failed" : "passed"]++;
-    if (Number.isFinite(row.ttfbMs)) c.ttfb.push(row.ttfbMs);
-    if (Number.isFinite(row.totalMs)) c.total.push(row.totalMs);
-    if (Number.isFinite(row.bytes)) c.bytes.push(row.bytes);
+    checkpoint.exportResults();
+    const rows = checkpoint.latest();
+    const failed = rows.filter(row => row.issues.length);
+    if (!stopReason && (rows.length !== entries.length || failed.length)) stopReason = "Incomplete coverage or unresolved failures; explicit resume required";
+    const counts = {};
+    for (const row of rows) {
+      const c = counts[row.kind] ??= { attempted: 0, passed: 0, failed: 0, ttfb: [], total: [], bytes: [] };
+      c.attempted++;
+      c[row.issues.length ? "failed" : "passed"]++;
+      if (Number.isFinite(row.ttfbMs)) c.ttfb.push(row.ttfbMs);
+      if (Number.isFinite(row.totalMs)) c.total.push(row.totalMs);
+      if (Number.isFinite(row.bytes)) c.bytes.push(row.bytes);
+    }
+    const byKind = Object.fromEntries(Object.entries(counts).map(([key,c]) => [key, { attempted:c.attempted, passed:c.passed, failed:c.failed, p50TtfbMs:quantile(c.ttfb,.5), p95TtfbMs:quantile(c.ttfb,.95), p95TotalMs:quantile(c.total,.95), p95HtmlBytes:quantile(c.bytes,.95) }]));
+    const summary = { started, finished: new Date().toISOString(), origin: LOCAL, revision, snapshotUrls: entries.length, priorAttempted, batchAttempted, attempted: rows.length, passed: rows.length-failed.length, failed:failed.length, untested:entries.length-rows.length, duplicateUrls, stopReason, transients, byKind, issues: failed.reduce((counts,row) => { for(const issue of row.issues) counts[issue]=(counts[issue]??0)+1; return counts; }, {}), complete: !stopReason && entries.length > 0 && rows.length === entries.length && failed.length === 0 && duplicateUrls.length === 0 };
+    fs.writeFileSync(dir + "/summary.json", JSON.stringify(summary,null,2));
+    return summary;
+  } finally {
+    fs.closeSync(lock);
+    fs.unlinkSync(lockPath);
   }
-  const byKind = Object.fromEntries(Object.entries(counts).map(([key,c]) => [key, { attempted:c.attempted, passed:c.passed, failed:c.failed, p50TtfbMs:quantile(c.ttfb,.5), p95TtfbMs:quantile(c.ttfb,.95), p95TotalMs:quantile(c.total,.95), p95HtmlBytes:quantile(c.bytes,.95) }]));
-  const summary = { started, finished: new Date().toISOString(), origin: LOCAL, snapshotUrls: entries.length, attempted: rows.length, passed: rows.length-failed.length, failed:failed.length, untested:entries.length-rows.length, duplicateUrls, stopReason, transients, byKind, issues: failed.reduce((counts,row) => { for(const issue of row.issues) counts[issue]=(counts[issue]??0)+1; return counts; }, {}) };
-  fs.writeFileSync(OUTPUT + "/summary.json", JSON.stringify(summary,null,2));
-  console.log(JSON.stringify(summary,null,2));
-  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "\n## Full isolated sitemap audit\n\n" + "Attempted: " + summary.attempted + " / " + summary.snapshotUrls + "; passed: " + summary.passed + "; failed: " + summary.failed + "; untested: " + summary.untested + ".\n\n");
-  if (stopReason || duplicateUrls.length || !rows.length || rows.length !== entries.length || failed.length) process.exitCode = 1;
 }
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) await main();
