@@ -1,6 +1,5 @@
+import { formatOsloDate } from "@/lib/osloDate";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
-import { nb } from "date-fns/locale";
 import { getCategoryFallbackImage } from "@/utils/seo";
 
 interface Article {
@@ -92,7 +91,7 @@ export const HeroSection = ({ articles }: HeroSectionProps) => {
                   className="text-[11px] text-muted-foreground mt-1.5 block"
                   style={{ fontFamily: "'Inter', sans-serif" }}
                 >
-                  {format(new Date(article.created_at), "d. MMM yyyy", { locale: nb })}
+                  {formatOsloDate(article.created_at, "d. MMM yyyy")}
                 </time>
               </div>
             </Link>

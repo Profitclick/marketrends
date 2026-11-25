@@ -1,3 +1,5 @@
+import { formatOsloDate } from "@/lib/osloDate";
+import { useRenderClock } from "@/lib/renderClock";
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,11 +24,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Home, ChevronRight, Flame } from "lucide-react";
 import { getCategoryFallbackImage } from "@/utils/seo";
 import { getDisplayedTopicArticleCount } from "@/utils/topicCounts";
-import { format } from "date-fns";
-import { nb } from "date-fns/locale";
 
 const TopicPage = ({ initialData }: { initialData?: TopicRouteData } = {}) => {
   const { slug } = useParams();
+  const now = useRenderClock();
   const [topic, setTopic] = useState<TopicRouteTopic | null>(initialData?.topic ?? null);
   const [articles, setArticles] = useState<TopicRouteArticle[]>(initialData?.articles ?? []);
   const [hero, setHero] = useState<TopicRouteArticle | null>(initialData?.hero ?? null);
@@ -110,14 +111,14 @@ const TopicPage = ({ initialData }: { initialData?: TopicRouteData } = {}) => {
   const guides = articles.filter((a) => a.article_type === "guide" && a.id !== explainer?.id).slice(0, 3);
   const recommended = articles.filter((a) => !heroExclId.has(a.id)).slice(10, 14);
   const trending = articles.filter((a) => {
-    const days = (Date.now() - new Date(a.created_at).getTime()) / 86400000;
+    const days = (now - new Date(a.created_at).getTime()) / 86400000;
     return days < 7;
   }).slice(0, 6);
 
   const displayedArticleCount = getDisplayedTopicArticleCount(topic.article_count, articles.length);
   const isHot = topic.articles_last_7d >= 3;
   const lastUpdatedRel = topic.last_article_at
-    ? format(new Date(topic.last_article_at), "d. MMM yyyy", { locale: nb })
+    ? formatOsloDate(topic.last_article_at, "d. MMM yyyy")
     : null;
 
   const seo = topicMetadata(topic, articles, hero, entities);
@@ -198,7 +199,7 @@ const TopicPage = ({ initialData }: { initialData?: TopicRouteData } = {}) => {
                   <p className="text-muted-foreground text-base leading-relaxed line-clamp-4">{hero.meta_description}</p>
                 )}
                 <time className="text-[11px] uppercase tracking-wider text-muted-foreground mt-3" style={{ fontFamily: "'Inter', sans-serif" }}>
-                  {format(new Date(hero.created_at), "d. MMMM yyyy", { locale: nb })}
+                  {formatOsloDate(hero.created_at, "d. MMMM yyyy")}
                 </time>
               </div>
             </div>

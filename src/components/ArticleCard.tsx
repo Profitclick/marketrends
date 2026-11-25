@@ -1,6 +1,5 @@
+import { formatOsloDate } from "@/lib/osloDate";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
-import { nb } from "date-fns/locale";
 import { getCategoryFallbackImage } from "@/utils/seo";
 import { ArticleImage } from "@/components/ArticleImage";
 
@@ -74,7 +73,7 @@ export const ArticleCard = ({
         </p>
       )}
       <time dateTime={article.created_at} className="text-[11px] font-sans text-muted-foreground block">
-        {format(new Date(article.created_at), "d. MMM yyyy", { locale: nb })}
+        {formatOsloDate(article.created_at, "d. MMM yyyy")}
       </time>
     </Link>
   );

@@ -1,3 +1,4 @@
+import { formatOsloDate } from "@/lib/osloDate";
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,8 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronRight } from "lucide-react";
 import { getCategoryFallbackImage } from "@/utils/seo";
 import { resolveArticleImages } from "@/utils/articleImages";
-import { format } from "date-fns";
-import { nb } from "date-fns/locale";
 
 export default function CategoryPage({ initialData }: { initialData?: CategoryRouteData } = {}) {
   const { slug } = useParams<{ slug: string }>();
@@ -150,7 +149,7 @@ export default function CategoryPage({ initialData }: { initialData?: CategoryRo
                         <p className="text-primary-foreground/85 text-sm md:text-base leading-6 line-clamp-2 max-w-2xl">{heroArticle.meta_description}</p>
                       )}
                       <time dateTime={heroArticle.created_at} className="text-[11px] text-primary-foreground/70 mt-3 block">
-                        {format(new Date(heroArticle.created_at), "d. MMM yyyy", { locale: nb })}
+                        {formatOsloDate(heroArticle.created_at, "d. MMM yyyy")}
                       </time>
                     </div>
                   </div>
@@ -183,7 +182,7 @@ export default function CategoryPage({ initialData }: { initialData?: CategoryRo
                             {article.title}
                           </h3>
                           <time dateTime={article.created_at} className="text-[11px] text-muted-foreground mt-1.5 block">
-                            {format(new Date(article.created_at), "d. MMM", { locale: nb })}
+                            {formatOsloDate(article.created_at, "d. MMM")}
                           </time>
                         </div>
                       </Link>

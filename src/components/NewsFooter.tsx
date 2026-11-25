@@ -1,3 +1,4 @@
+import { useRenderClock } from "@/lib/renderClock";
 import { Link } from "react-router-dom";
 import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,11 @@ const RESOURCES = [
   { name: "Ressurser", to: "/ressurser" },
   { name: "Trending", to: "/trending" },
 ];
+
+function CopyrightYear() {
+  const now = useRenderClock();
+  return <>{new Intl.DateTimeFormat("nb-NO", { year: "numeric", timeZone: "Europe/Oslo" }).format(now)}</>;
+}
 
 export const NewsFooter = () => (
   <footer className="bg-header-footer mt-20">
@@ -131,7 +137,7 @@ export const NewsFooter = () => (
 
       <div className="mt-10 pt-6 border-t border-header-footer-foreground/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <p className="text-xs text-header-footer-foreground/40">
-          © {new Date().getFullYear()} Marketrends.no. Alle rettigheter reservert.
+          © <CopyrightYear /> Marketrends.no. Alle rettigheter reservert.
         </p>
         <p className="text-[11px] text-header-footer-foreground/40">
           Innhold levert i samarbeid med ledende internasjonale kilder · AI-assistert lokalisering

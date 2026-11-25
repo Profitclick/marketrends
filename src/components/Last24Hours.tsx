@@ -1,6 +1,7 @@
+import { formatOsloDate } from "@/lib/osloDate";
+import { useRenderClock } from "@/lib/renderClock";
 import { Link } from "react-router-dom";
-import { format, isWithinInterval, subHours } from "date-fns";
-import { nb } from "date-fns/locale";
+import { isWithinInterval, subHours } from "date-fns";
 import { FreshnessBadge } from "@/components/FreshnessBadge";
 
 interface Article {
@@ -17,7 +18,7 @@ interface Last24HoursProps {
 }
 
 export const Last24Hours = ({ articles }: Last24HoursProps) => {
-  const now = new Date();
+  const now = new Date(useRenderClock());
   const twentyFourHoursAgo = subHours(now, 24);
 
   const recentArticles = articles
@@ -50,7 +51,7 @@ export const Last24Hours = ({ articles }: Last24HoursProps) => {
                 className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap flex-shrink-0"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                {format(new Date(article.created_at), "HH:mm", { locale: nb })}
+                {formatOsloDate(article.created_at, "HH:mm")}
               </time>
               <FreshnessBadge date={article.created_at} showLabel={false} className="shrink-0" />
               <span className="text-sm font-semibold leading-snug line-clamp-2 group-hover:underline decoration-1 underline-offset-2 flex-1">

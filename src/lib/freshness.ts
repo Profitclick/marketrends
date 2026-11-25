@@ -1,9 +1,9 @@
 // Norwegian relative-time + freshness helpers for newsroom UI
 export type Freshness = "live" | "fresh" | "today" | "recent" | "older";
 
-export function getFreshness(date: string | Date): Freshness {
+export function getFreshness(date: string | Date, now = Date.now()): Freshness {
   const t = new Date(date).getTime();
-  const mins = (Date.now() - t) / 60000;
+  const mins = (now - t) / 60000;
   if (mins < 60) return "live";
   if (mins < 6 * 60) return "fresh";
   if (mins < 24 * 60) return "today";
@@ -11,9 +11,9 @@ export function getFreshness(date: string | Date): Freshness {
   return "older";
 }
 
-export function relativeTimeNo(date: string | Date): string {
+export function relativeTimeNo(date: string | Date, now = Date.now()): string {
   const t = new Date(date).getTime();
-  const diff = Date.now() - t;
+  const diff = now - t;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "akkurat nå";
   if (mins < 60) return `${mins} min siden`;
@@ -21,5 +21,5 @@ export function relativeTimeNo(date: string | Date): string {
   if (hours < 24) return `${hours} t siden`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days} d siden`;
-  return new Date(date).toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+  return new Date(date).toLocaleDateString("nb-NO", { day: "numeric", month: "short", timeZone: "Europe/Oslo" });
 }

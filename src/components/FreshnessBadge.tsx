@@ -1,3 +1,4 @@
+import { useRenderClock } from "@/lib/renderClock";
 import { getFreshness, relativeTimeNo } from "@/lib/freshness";
 
 interface Props {
@@ -7,8 +8,9 @@ interface Props {
 }
 
 export const FreshnessBadge = ({ date, showLabel = true, className = "" }: Props) => {
-  const f = getFreshness(date);
-  const rel = relativeTimeNo(date);
+  const now = useRenderClock();
+  const f = getFreshness(date, now);
+  const rel = relativeTimeNo(date, now);
 
   if (f === "live") {
     return (

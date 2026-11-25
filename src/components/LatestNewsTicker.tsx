@@ -1,7 +1,6 @@
+import { formatOsloDate } from "@/lib/osloDate";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
-import { nb } from "date-fns/locale";
 
 interface Article {
   id: string;
@@ -46,7 +45,7 @@ export const LatestNewsTicker = ({ articles }: LatestNewsTickerProps) => {
                 className="text-[11px] text-muted-foreground tabular-nums shrink-0"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                {format(new Date(currentArticle.created_at), "HH:mm", { locale: nb })}
+                {formatOsloDate(currentArticle.created_at, "HH:mm")}
               </span>
               <span className="text-[13px] font-medium text-foreground truncate group-hover:underline">
                 {currentArticle.title}

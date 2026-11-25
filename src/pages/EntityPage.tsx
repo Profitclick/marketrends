@@ -1,3 +1,4 @@
+import { useRenderClock } from "@/lib/renderClock";
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
@@ -21,6 +22,7 @@ const typeLabel: Record<string, string> = {
 };
 
 const TopicPageInner = ({ slug, initialData }: { slug: string; initialData?: EntityRouteEntity }) => {
+  const now = useRenderClock();
   const [loadedEntity, setEntity] = useState<EntityRouteEntity | null>(null);
   const entity = initialData ?? loadedEntity;
   const [notFound, setNotFound] = useState(false);
@@ -122,7 +124,7 @@ const TopicPageInner = ({ slug, initialData }: { slug: string; initialData?: Ent
             </span>
             {entity.last_mention_at && (
               <span className="flex items-center gap-1.5">
-                <Clock className="h-3 w-3" /> Sist omtalt {relativeTimeNo(entity.last_mention_at)}
+                <Clock className="h-3 w-3" /> Sist omtalt {relativeTimeNo(entity.last_mention_at, now)}
               </span>
             )}
           </div>

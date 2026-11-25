@@ -7,6 +7,7 @@ import {
   createRootRouteWithContext,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { RenderClockProvider } from "@/lib/renderClock";
 
 import appCss from "../index.css?url";
 import { Toaster } from "@/components/ui/toaster";
@@ -78,6 +79,7 @@ function ErrorComponent({ error }: { error: unknown }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  loader: () => ({ renderedAt: Date.now() }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -120,12 +122,13 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { renderedAt } = Route.useLoaderData();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <Outlet />
+        <RenderClockProvider renderedAt={renderedAt}><Outlet /></RenderClockProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
