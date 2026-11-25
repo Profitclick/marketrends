@@ -1,4 +1,4 @@
-name: MIGRATE-02.3A.7.4 reusable segmented recovery
+name: MIGRATE-02.3A.7.4.2 reusable segmented recovery
 # No push, schedule, or dispatch trigger. A separate, explicitly approved caller is required.
 on:
   workflow_call:
@@ -28,7 +28,7 @@ on:
         required: true
         type: number
 permissions:
-  contents: read
+  contents: write
   actions: read
 concurrency:
   group: migrate02-release-regression
@@ -61,14 +61,14 @@ jobs:
           [[ "$SEGMENT_SOURCE_SHA" =~ ^[a-f0-9]{64}$ ]]
           [[ "$SEGMENT_SOURCE_HEAD" =~ ^[a-f0-9]{40}$ ]]
           [[ "$SEGMENT_LIMIT" =~ ^[1-9][0-9]{0,2}$ ]] && (( SEGMENT_LIMIT <= 250 ))
-          [[ "$SEGMENT_PRIOR_PASSED" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_PASSED >= 1321 && SEGMENT_PRIOR_PASSED < 5276 ))
+          [[ "$SEGMENT_PRIOR_PASSED" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_PASSED >= 1321 && SEGMENT_PRIOR_PASSED <= 5276 ))
           [[ "$SEGMENT_PRIOR_HISTORY" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_HISTORY == SEGMENT_PRIOR_PASSED + 3 ))
           echo "SEGMENT_EVIDENCE=$RUNNER_TEMP/segment-evidence" >> "$GITHUB_ENV"
           echo "SEGMENT_SOURCE_DIR=$RUNNER_TEMP/segment-source" >> "$GITHUB_ENV"
           echo "SEGMENT_RAW_LOG=$RUNNER_TEMP/segment-runtime.raw.log" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
-          ref: b27edc8b163cf76f201fc4c07474f3c7b6cd3f17
+          ref: ${{ github.sha }}
           path: guard-src
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -102,15 +102,39 @@ jobs:
           unzip -tq "$RUNNER_TEMP/segment-source.zip"
           unzip -q "$RUNNER_TEMP/segment-source.zip" -d "$SEGMENT_SOURCE_DIR"
       - name: Offline checkpoint tests and preparation
+        id: plan
         working-directory: recovery-src
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
-          test "$(git -C ../guard-src rev-parse HEAD)" = b27edc8b163cf76f201fc4c07474f3c7b6cd3f17
+          test "$(git -C ../guard-src rev-parse HEAD)" = "$GITHUB_SHA"
           node --test scripts/full-sitemap-checkpoint.test.mjs
-          SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segmented-recovery-guard.test.mjs
+          SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segment*.test.mjs
           node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
+          jq -r '"limit=\(.limit)"' "$SEGMENT_EVIDENCE/segment-plan.json" >> "$GITHUB_OUTPUT"
+      - name: Validate source register and reserve checkpoint
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_CONFIG_COUNT: '2'
+          GIT_CONFIG_KEY_0: credential.helper
+          GIT_CONFIG_VALUE_0: ''
+          GIT_CONFIG_KEY_1: credential.helper
+          GIT_CONFIG_VALUE_1: '!gh auth git-credential'
+          PLAN_LIMIT: ${{ steps.plan.outputs.limit }}
+        run: |
+          set -euo pipefail
+          if [[ "$SEGMENT_SOURCE_ID" != 15049826258 ]]; then
+            node guard-src/scripts/segment-register.mjs verify-source
+          fi
+          if [[ "$PLAN_LIMIT" != 0 ]]; then
+            node guard-src/scripts/segment-register.mjs reserve
+          fi
+      - name: Record completed inventory without starting a runtime
+        if: success() && steps.plan.outputs.limit == '0'
+        run: node guard-src/scripts/segmented-recovery-guard.mjs complete-inventory
       - name: Compile SSR without sitemap generation
+        if: success() && steps.plan.outputs.limit != '0'
         working-directory: recovery-src
         run: |
           set -euo pipefail
@@ -120,6 +144,7 @@ jobs:
           test -f .env
           test -z "$(git status --porcelain --untracked-files=no)"
       - name: One supervised isolated segment
+        if: success() && steps.plan.outputs.limit != '0'
         working-directory: recovery-src
         shell: bash
         run: |
@@ -174,9 +199,30 @@ jobs:
             exit 70
           fi
       - uses: actions/upload-artifact@v4
+        id: evidence
         if: always() && env.SEGMENT_EVIDENCE != ''
         with:
           name: migrate02-segmented-recovery
           path: ${{ env.SEGMENT_EVIDENCE }}/
           retention-days: 14
           if-no-files-found: error
+      - name: Record terminal register state
+        if: always() && env.SEGMENT_EVIDENCE != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_CONFIG_COUNT: '2'
+          GIT_CONFIG_KEY_0: credential.helper
+          GIT_CONFIG_VALUE_0: ''
+          GIT_CONFIG_KEY_1: credential.helper
+          GIT_CONFIG_VALUE_1: '!gh auth git-credential'
+          JOB_STATUS: ${{ job.status }}
+          EVIDENCE_ID: ${{ steps.evidence.outputs.artifact-id }}
+          EVIDENCE_SHA: ${{ steps.evidence.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          test -f "$SEGMENT_EVIDENCE/segment-reservation.json" || exit 0
+          if [[ "$JOB_STATUS" == success ]] && jq -e '.status=="PASS"' "$SEGMENT_EVIDENCE/segment-gate.json" >/dev/null; then
+            node guard-src/scripts/segment-register.mjs finish PASS "$EVIDENCE_ID" "${EVIDENCE_SHA#sha256:}"
+          else
+            node guard-src/scripts/segment-register.mjs finish QUARANTINE
+          fi

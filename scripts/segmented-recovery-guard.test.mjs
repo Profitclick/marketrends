@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {batchSize,verifyResource,verifyTtfb,ttfbWindows,verifyProgress,reconcile,verifyReconciliation,makeLatch,guardedFetch,verifyTarget,Stop,REV,SNAP,RSS_MAX,LOCAL,MAX} from './segmented-recovery-guard.mjs';
+import {batchSize,verifyResource,verifyTtfb,ttfbWindows,verifyHttpTimings,verifyProgress,reconcile,verifyReconciliation,makeLatch,guardedFetch,verifyTarget,Stop,REV,SNAP,RSS_MAX,LOCAL,MAX} from './segmented-recovery-guard.mjs';
 
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const fail=(fn,code)=>assert.throws(fn,e=>e instanceof Stop&&e.code===code);
@@ -12,11 +12,12 @@ const worker={pid:123,startTicks:456,comm:'workerd',rssBytes:100*1024*1024};
 const sample=over=>({...base,processes:[worker],...over});
 const target=i=>({url:'https://marketrends.no/article-'+i,kind:'article',sitemap:'/sitemap-articles-1.xml'});
 const options=()=>({redirect:'manual',signal:AbortSignal.timeout(15000)});
-const rows=(n,ttfb)=>Array.from({length:n},()=>({ttfbMs:ttfb}));
+const rows=(n,ttfb)=>Array.from({length:n},()=>({httpTtfbMs:ttfb}));
 test('batch cap and final partial batch; malformed input rejected',()=>{
   assert.equal(batchSize(250,3955),250);assert.equal(batchSize(250,205),205);
   for(const n of [0,-1,251,1.1,NaN,Infinity,'250'])fail(()=>batchSize(n,3955),'INVALID_BATCH_LIMIT');
-  for(const n of [0,-1,5277,NaN])fail(()=>batchSize(250,n),'INVALID_REMAINING');
+  assert.equal(batchSize(250,1),1);assert.equal(batchSize(250,0),0);
+  for(const n of [-1,5277,NaN])fail(()=>batchSize(250,n),'INVALID_REMAINING');
 });
 test('memory exactly at 20 percent passes; lower fails',()=>{
   assert.deepEqual(verifyResource(base,sample({memAvailableBytes:200})),['123:456']);
@@ -55,6 +56,14 @@ test('nearest-rank p95; two consecutive complete windows over 5000 stop',()=>{
 });
 test('missing TTFB in a complete window stops rather than fabricating a value',()=>{
   fail(()=>verifyTtfb([...rows(24,500),{}]),'TTFB_WINDOW_EVIDENCE_MISSING');
+});
+test('only first-byte latency influences the stop; missing partial timings fail closed',()=>{
+  const results=Array.from({length:50},(_,i)=>({...target(i),status:200,ttfbMs:9000,totalMs:10000}));
+  const actual=results.map(({url,status})=>({url,status,httpTtfbMs:10,guardOverheadMs:8900}));
+  verifyHttpTimings(results,actual);
+  fail(()=>verifyHttpTimings(results.slice(0,1),[]),'HTTP_TIMING_COUNT');
+  fail(()=>verifyHttpTimings(results.slice(0,1),[{...actual[0],httpTtfbMs:null}]),'HTTP_TIMING_MISSING');
+  fail(()=>verifyHttpTimings(results,actual.map(t=>({...t,httpTtfbMs:5001}))),'TTFB_TWO_WINDOWS_LIMIT');
 });
 test('runtime reconciliation exact URL, query, status, multiplicity',()=>{
   const r=[{url:'https://marketrends.no/a?q=1',status:200},{url:'https://marketrends.no/b',status:503}];
@@ -115,8 +124,11 @@ test('real source checkpoint: byte integrity, prefix, target ordering, incomplet
   const root=process.env.SEGMENT_TEST_SOURCE_DIR;
   assert.ok(root,'real artifact fixture required; do not skip');
   const raw=fs.readFileSync(path.join(root,'recovery/snapshot.json'));
-  const state=JSON.parse(fs.readFileSync(path.join(root,'recovery/checkpoint.json'),'utf8'));
-  assert.equal(hash(raw),SNAP);assert.equal(state.revision,REV);
+  const source=JSON.parse(fs.readFileSync(path.join(root,'recovery/checkpoint.json'),'utf8'));
+  assert.equal(hash(raw),SNAP);assert.equal(source.revision,REV);assert.equal(hash(source.journal),source.journalSha256);
+  // Keep the two-target integrity checks applicable to a final or complete source.
+  const journal=source.journal.split('\n').slice(0,1324).join('\n')+'\n';
+  const state={...source,journal,journalSha256:hash(journal)};
   const snapshot=JSON.parse(raw),prior=new Set(state.journal.trimEnd().split('\n').map(l=>JSON.parse(l).url));
   const targets=snapshot.entries.filter(e=>!prior.has(e.url)).slice(0,MAX);
   assert.equal(targets.length,Math.min(MAX,snapshot.entries.length-prior.size));
