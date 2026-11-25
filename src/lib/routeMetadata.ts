@@ -13,7 +13,7 @@ import type {
   SearchIntentRouteIntent,
   SearchIntentRoutePillar,
   RouteArticle,
-  type SerializableJson,
+  SerializableJson,
 } from "@/lib/routeData";
 
 export const SITE_URL = "https://marketrends.no";
