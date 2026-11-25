@@ -1,0 +1,53 @@
+name: MIGRATE-01 build validation
+on:
+  push:
+    branches: [feat/tanstack-migration]
+    paths: [.github/workflows/migrate01-build.yml]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/tanstack-migration
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+      - name: Resolve lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Clean install
+        run: npm ci --no-audit --no-fund
+      - name: Build and generate route tree
+        run: npm run build
+      - name: App typecheck
+        run: npm run typecheck
+      - name: Node config typecheck
+        run: npx tsc -p tsconfig.node.json --noEmit
+      - name: Deterministic tests
+        run: |
+          find scripts -maxdepth 1 \( -name '*.test.ts' -o -name '*.test.mjs' -o -name '*.test.js' \) ! -name 'production-access.test.ts' -print0 \
+            | xargs -0 bun test
+      - name: Show generated outputs
+        run: |
+          echo "== route tree =="
+          test -f src/routeTree.gen.ts && wc -l src/routeTree.gen.ts
+          echo "== server output =="
+          find .output -maxdepth 2 -type f | sort | head -80
+          echo "== git status =="
+          git status --short
+      - name: Commit deterministic generated files
+        run: |
+          git config user.name "Marketrends | Solutions"
+          git config user.email "75886814+Profitclick@users.noreply.github.com"
+          git add package-lock.json src/routeTree.gen.ts
+          if git diff --cached --quiet; then
+            echo "No generated files changed"
+          else
+            git commit -m "chore(migrate): lock TanStack dependencies and route tree"
+            git push origin HEAD:feat/tanstack-migration
+          fi
