@@ -7,6 +7,12 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "react-router-dom": [
+        "./src/lib/routerCompat.tsx"
+      ],
+      "react-helmet": [
+        "./src/lib/helmetCompat.tsx"
       ]
     },
     "skipLibCheck": true,
