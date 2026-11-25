@@ -36,7 +36,7 @@ describe("framework-neutral route outcomes", () => {
 
 describe("route metadata stays production-canonical", () => {
   test("homepage metadata keeps the production canonical", () => {
-    expect(homepageMetadata().canonicalUrl).toBe("https://marketrends.no");
+    expect(homepageMetadata().canonicalUrl).toBe("https://marketrends.no/");
   });
 
   test("category metadata is deterministic and production-canonical", () => {
