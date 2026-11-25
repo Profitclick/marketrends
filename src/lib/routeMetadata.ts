@@ -304,7 +304,7 @@ export function compareMetadata(page: CompareRoutePage): RouteSeoMetadata {
       { name: "Sammenligninger", url: `${SITE_URL}/compare` },
       { name: page.title, url: canonicalUrl },
     ],
-    faqSchema: page.schema_json || undefined,
+    faqSchema: schemaObject(page.schema_json),
   };
 }
 
