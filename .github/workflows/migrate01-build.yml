@@ -1,4 +1,4 @@
-name: MIGRATE-01 build validation v9
+name: MIGRATE-01 build validation v10
 on:
   push:
     branches: [feat/tanstack-migration]
@@ -24,6 +24,11 @@ jobs:
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Clean install
         run: npm ci --no-audit --no-fund
+      - name: Regenerate Bun lock from TanStack package graph
+        run: |
+          rm -f bun.lock bun.lockb
+          bun install --lockfile-only
+          bun install --frozen-lockfile
       - name: Build and generate route tree
         run: npm run build
       - name: App typecheck
@@ -42,11 +47,13 @@ jobs:
           find .output -maxdepth 2 -type f | sort | head -80
           echo "== git status =="
           git status --short
+      - name: Bun build parity
+        run: bun run build
       - name: Commit deterministic generated files
         run: |
           git config user.name "Marketrends | Solutions"
           git config user.email "75886814+Profitclick@users.noreply.github.com"
-          git add package-lock.json src/routeTree.gen.ts
+          git add -A package-lock.json bun.lock bun.lockb src/routeTree.gen.ts
           if git diff --cached --quiet; then
             echo "No generated files changed"
           else
