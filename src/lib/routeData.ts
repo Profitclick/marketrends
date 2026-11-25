@@ -5,6 +5,14 @@ import { getCluster, type ClusterConfig } from "@/config/clusters";
 
 export type MarketrendsDataClient = SupabaseClient<Database>;
 
+export type SerializableJson =
+  | null
+  | boolean
+  | number
+  | string
+  | SerializableJson[]
+  | { [key: string]: SerializableJson };
+
 export interface RouteArticle {
   id: string;
   title: string;
@@ -134,8 +142,8 @@ export interface EntityRouteEntity {
   type: string;
   description: string | null;
   summary: string | null;
-  key_facts: unknown;
-  faqs: unknown;
+  key_facts: SerializableJson;
+  faqs: SerializableJson;
   what_happened: string | null;
   why_it_matters: string | null;
   meta_title: string | null;
@@ -394,11 +402,10 @@ export interface GuideRoutePage {
   category: string | null;
   estimated_read_time: number | null;
   difficulty: string | null;
-  steps_json: unknown;
-  faq_json: unknown;
-  resources_json: unknown;
+  steps_json: SerializableJson;
+  faq_json: SerializableJson;
+  resources_json: SerializableJson;
   content: string | null;
-  [key: string]: unknown;
 }
 
 export interface KnowledgeRoutePage {
@@ -407,11 +414,10 @@ export interface KnowledgeRoutePage {
   summary: string | null;
   meta_title: string | null;
   meta_description: string | null;
-  key_takeaways_json: unknown;
-  faq_json: unknown;
-  schema_json: object | null;
+  key_takeaways_json: SerializableJson;
+  faq_json: SerializableJson;
+  schema_json: SerializableJson;
   content: string | null;
-  [key: string]: unknown;
 }
 
 export interface CompareRoutePage {
@@ -422,11 +428,10 @@ export interface CompareRoutePage {
   meta_description: string | null;
   entity_a: string;
   entity_b: string;
-  pros_cons_json: unknown;
-  faq_json: unknown;
-  schema_json: object | null;
+  pros_cons_json: SerializableJson;
+  faq_json: SerializableJson;
+  schema_json: SerializableJson;
   content: string | null;
-  [key: string]: unknown;
 }
 
 export interface SearchIntentMeta {
@@ -435,7 +440,7 @@ export interface SearchIntentMeta {
   meta_description?: string;
   summary?: string;
   content?: string;
-  faq_schema?: object;
+  faq_schema?: SerializableJson;
 }
 
 export interface SearchIntentGeoBlocks {
@@ -462,7 +467,6 @@ export interface SearchIntentRouteIntent {
   search_cluster?: string | null;
   entity_id?: string | null;
   secondary_entity_id?: string | null;
-  [key: string]: unknown;
 }
 
 export interface SearchIntentRoutePillar {
