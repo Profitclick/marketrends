@@ -1,8 +1,8 @@
-name: MIGRATE-02 release regression
+name: MIGRATE-02.1 release regression
 on:
   push:
     branches: [feat/tanstack-migration]
-    paths: [.github/workflows/migrate02-validation.yml]
+    paths: ['src/**', 'scripts/**', 'package.json', 'package-lock.json', 'bun.lock', 'vite.config.ts', 'tsconfig*.json', '.github/workflows/migrate02-validation.yml']
   workflow_dispatch:
 permissions:
   contents: read

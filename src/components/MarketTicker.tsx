@@ -48,10 +48,10 @@ export const MarketTicker = () => {
         <div className="flex items-center justify-between py-1.5 text-[11px]" style={{ fontFamily: "'Inter', sans-serif" }}>
           <div className="flex min-w-0 items-center gap-4 sm:gap-6 overflow-hidden">
             <span className="hidden md:inline shrink-0 text-header-footer-foreground/50 whitespace-nowrap capitalize">
-              {currentTime ? `${formatDate(currentTime)} · ${currentTime ? formatTime(currentTime) : ""}` : ""}
+              {currentTime ? `${formatDate(currentTime)} · ${formatTime(currentTime)}` : ""}
             </span>
             <span className="md:hidden shrink-0 text-header-footer-foreground/50 whitespace-nowrap tabular-nums">
-              {formatTime(currentTime)}
+              {currentTime ? formatTime(currentTime) : ""}
             </span>
             {markets.map((market, idx) => (
               <div
