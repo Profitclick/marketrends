@@ -11,12 +11,14 @@ interface TopicChip {
 interface Props {
   articleId: string;
   className?: string;
+  initialTopics?: TopicChip[];
 }
 
-export const TopicChips = ({ articleId, className }: Props) => {
-  const [topics, setTopics] = useState<TopicChip[]>([]);
+export const TopicChips = ({ articleId, className, initialTopics }: Props) => {
+  const [topics, setTopics] = useState<TopicChip[]>(initialTopics ?? []);
 
   useEffect(() => {
+    if (initialTopics) { setTopics(initialTopics); return; }
     let cancelled = false;
     (async () => {
       const { data } = await supabase
@@ -32,7 +34,7 @@ export const TopicChips = ({ articleId, className }: Props) => {
       setTopics(list);
     })();
     return () => { cancelled = true; };
-  }, [articleId]);
+  }, [articleId, initialTopics]);
 
   if (!topics.length) return null;
 

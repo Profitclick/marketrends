@@ -13,7 +13,12 @@ export type SerializableJson =
   | SerializableJson[]
   | { [key: string]: SerializableJson };
 
+export interface RouteTopicChip { id: string; slug: string; name: string }
+export interface RouteEntityChip extends RouteTopicChip { type: string }
+
 export interface RouteArticle {
+  topics?: RouteTopicChip[];
+  entities?: RouteEntityChip[];
   id: string;
   title: string;
   slug: string;
@@ -237,7 +242,15 @@ export async function loadNewsRouteData(
     if (error) throw error;
     if (!data) return routeNotFound();
 
+    const [topicResult, entityResult] = await Promise.all([
+      client.from("article_topics").select("topics!inner(id,slug,name)").eq("article_id", data.id).order("relevance_score", { ascending: false }).limit(5),
+      client.from("article_entities").select("entities!inner(id,slug,name,type)").eq("article_id", data.id).order("is_primary", { ascending: false }).order("mention_count", { ascending: false }).limit(6),
+    ]);
+    if (topicResult.error) throw topicResult.error;
+    if (entityResult.error) throw entityResult.error;
     selectedArticle = {
+      topics: (topicResult.data as unknown as { topics: RouteTopicChip | null }[]).flatMap(r => r.topics ? [r.topics] : []),
+      entities: (entityResult.data as unknown as { entities: RouteEntityChip | null }[]).flatMap(r => r.entities ? [r.entities] : []),
       ...(data as unknown as RouteArticle),
       archived_sources: (data.archived_sources as string[] | null) ?? null,
     };

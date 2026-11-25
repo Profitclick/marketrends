@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface Chip { id: string; slug: string; name: string; type: string; }
 
-export const EntityChips = ({ articleId, className }: { articleId: string; className?: string }) => {
-  const [items, setItems] = useState<Chip[]>([]);
+export const EntityChips = ({ articleId, className, initialEntities }: { articleId: string; className?: string; initialEntities?: Chip[] }) => {
+  const [items, setItems] = useState<Chip[]>(initialEntities ?? []);
   useEffect(() => {
+    if (initialEntities) { setItems(initialEntities); return; }
     (async () => {
       const { data } = await supabase
         .from("article_entities")
@@ -17,7 +18,7 @@ export const EntityChips = ({ articleId, className }: { articleId: string; class
         .limit(6);
       setItems((data || []).map((r: any) => r.entities).filter(Boolean));
     })();
-  }, [articleId]);
+  }, [articleId, initialEntities]);
   if (!items.length) return null;
   return (
     <div className={`flex flex-wrap gap-2 ${className || ""}`}>

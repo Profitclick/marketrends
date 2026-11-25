@@ -9,9 +9,10 @@ interface MarketData {
 
 export const MarketTicker = () => {
   const [markets, setMarkets] = useState<MarketData[]>([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
   useEffect(() => {
+    setCurrentTime(new Date());
     const timeInterval = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timeInterval);
   }, []);
@@ -28,10 +29,7 @@ export const MarketTicker = () => {
           { label: "SEK/NOK", value: (1 / data.rates.SEK).toFixed(2) },
         ]);
       } catch {
-        setMarkets([
-          { label: "USD/NOK", value: "10.85" },
-          { label: "EUR/NOK", value: "11.42" },
-        ]);
+        setMarkets([]);
       }
     };
     fetchMarketData();
@@ -50,7 +48,7 @@ export const MarketTicker = () => {
         <div className="flex items-center justify-between py-1.5 text-[11px]" style={{ fontFamily: "'Inter', sans-serif" }}>
           <div className="flex min-w-0 items-center gap-4 sm:gap-6 overflow-hidden">
             <span className="hidden md:inline shrink-0 text-header-footer-foreground/50 whitespace-nowrap capitalize">
-              {formatDate(currentTime)} · {formatTime(currentTime)}
+              {currentTime ? `${formatDate(currentTime)} · ${currentTime ? formatTime(currentTime) : ""}` : ""}
             </span>
             <span className="md:hidden shrink-0 text-header-footer-foreground/50 whitespace-nowrap tabular-nums">
               {formatTime(currentTime)}

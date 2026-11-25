@@ -1,5 +1,6 @@
 import { generateArticleSchema, getCategoryFallbackImage } from "@/utils/seo";
 
+import { CATEGORY_MAP } from "@/lib/routeData";
 import type { ClusterConfig } from "@/config/clusters";
 import type {
   CategoryDefinition,
@@ -13,15 +14,26 @@ import type {
   SearchIntentRouteIntent,
   SearchIntentRoutePillar,
   RouteArticle,
-  SerializableJson,
 } from "@/lib/routeData";
 
 export const SITE_URL = "https://marketrends.no";
 
-function schemaObject(value: SerializableJson | undefined): object | undefined {
-  return value !== null && value !== undefined && typeof value === "object"
-    ? (value as object)
-    : undefined;
+function visibleFaqSchema(value: unknown): object | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.filter((item): item is { q: string; a: string } =>
+    !!item && typeof item.q === "string" && typeof item.a === "string" &&
+    !!item.q.trim() && !!item.a.trim());
+  return items.length ? {
+    "@context": "https://schema.org", "@type": "FAQPage",
+    mainEntity: items.map(({ q, a }) => ({
+      "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a },
+    })),
+  } : undefined;
+}
+
+export function categoryPathForArticle(category: string): string | undefined {
+  const slug = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key].name === category);
+  return slug ? "/kategori/" + slug : undefined;
 }
 
 export interface RouteSeoMetadata {
@@ -72,10 +84,7 @@ export function articleMetadata(
     tags: article.tags || [],
     breadcrumbs: [
       { name: "Hjem", url: SITE_URL },
-      {
-        name: article.category,
-        url: `${SITE_URL}/?kategori=${article.category.toLowerCase().replace(/\s+/g, "-")}`,
-      },
+      ...(categoryPathForArticle(article.category) ? [{ name: article.category, url: SITE_URL + categoryPathForArticle(article.category) }] : []),
       { name: article.title.substring(0, 50), url: canonicalUrl },
     ],
     articleSchema: generateArticleSchema({
@@ -218,7 +227,6 @@ export function entityMetadata(entity: EntityRouteEntity): {
       ogType: "website",
       breadcrumbs: [
         { name: "Forsiden", url: SITE_URL },
-        { name: "Aktører", url: `${SITE_URL}/entity` },
         { name: entity.name, url: canonicalUrl },
       ],
       faqSchema: faqs.length
@@ -259,7 +267,6 @@ export function guideMetadata(page: GuideRoutePage): RouteSeoMetadata {
     ogType: "article",
     breadcrumbs: [
       { name: "Hjem", url: SITE_URL },
-      { name: "Guider", url: `${SITE_URL}/guide` },
       { name: page.title, url: canonicalUrl },
     ],
     articleSchema: {
@@ -286,10 +293,9 @@ export function knowledgeMetadata(page: KnowledgeRoutePage): RouteSeoMetadata {
     ogType: "article",
     breadcrumbs: [
       { name: "Hjem", url: SITE_URL },
-      { name: "Kunnskap", url: `${SITE_URL}/knowledge` },
       { name: page.title, url: canonicalUrl },
     ],
-    faqSchema: schemaObject(page.schema_json),
+    faqSchema: visibleFaqSchema(page.faq_json),
   };
 }
 
@@ -302,10 +308,9 @@ export function compareMetadata(page: CompareRoutePage): RouteSeoMetadata {
     ogType: "article",
     breadcrumbs: [
       { name: "Hjem", url: SITE_URL },
-      { name: "Sammenligninger", url: `${SITE_URL}/compare` },
       { name: page.title, url: canonicalUrl },
     ],
-    faqSchema: schemaObject(page.schema_json),
+    faqSchema: visibleFaqSchema(page.faq_json),
   };
 }
 
@@ -330,12 +335,11 @@ export function searchIntentMetadata(
     ogType: "article",
     breadcrumbs: [
       { name: "Hjem", url: SITE_URL },
-      { name: INTENT_LABEL[intent.intent_type] || "Intent", url: `${SITE_URL}/intent` },
       ...(pillar?.target_slug
         ? [{ name: pillar.keyword, url: `${SITE_URL}/intent/${pillar.target_slug}` }]
         : []),
       { name: title, url: canonicalUrl },
     ],
-    faqSchema: schemaObject(meta.faq_schema),
+    faqSchema: visibleFaqSchema(intent.geo_blocks?.faq),
   };
 }

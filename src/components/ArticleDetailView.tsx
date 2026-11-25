@@ -22,10 +22,12 @@ import { SEOHead } from "@/components/SEOHead";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Home, ChevronRight } from "lucide-react";
 import { calculateReadingTime } from "@/utils/authors";
-import { articleMetadata } from "@/lib/routeMetadata";
+import { articleMetadata, categoryPathForArticle } from "@/lib/routeMetadata";
 import { logRead } from "@/lib/readingHistory";
 
 interface Article {
+  topics?: { id: string; slug: string; name: string }[];
+  entities?: { id: string; slug: string; name: string; type: string }[];
   id: string;
   title: string;
   slug: string;
@@ -93,11 +95,8 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
     .slice(0, 3)
     .map((a) => ({ slug: a.slug, title: a.title, category: a.category }));
 
-  const breadcrumbs = [
-    { name: "Hjem", url: BASE_URL },
-    { name: article.category, url: `${BASE_URL}/?kategori=${article.category.toLowerCase().replace(/\s+/g, "-")}` },
-    { name: article.title.substring(0, 50), url: canonicalUrl },
-  ];
+  const breadcrumbs = articleMetadata(article).breadcrumbs || [];
+  const categoryPath = categoryPathForArticle(article.category);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -129,9 +128,7 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
               Hjem
             </Link>
             <ChevronRight className="h-3 w-3" />
-            <Link to={`/?kategori=${article.category.toLowerCase().replace(/\s+/g, "-")}`} className="hover:text-foreground transition-colors">
-              {article.category}
-            </Link>
+            {categoryPath ? <Link to={categoryPath} className="hover:text-foreground transition-colors">{article.category}</Link> : <span>{article.category}</span>}
           </nav>
 
           <article>
@@ -155,8 +152,8 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
               )}
               <div className="mt-5 flex items-center gap-3 flex-wrap">
                 <FreshnessBadge date={article.created_at} />
-                <TopicChips articleId={article.id} />
-                <EntityChips articleId={article.id} />
+                <TopicChips articleId={article.id} initialTopics={article.topics} />
+                <EntityChips articleId={article.id} initialEntities={article.entities} />
               </div>
             </header>
 
@@ -258,7 +255,7 @@ export const ArticleDetailView = ({ article, allArticles }: ArticleDetailViewPro
               <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>
                 Utforsk tema
               </h3>
-              <TopicChips articleId={article.id} />
+              <TopicChips articleId={article.id} initialTopics={article.topics} />
             </div>
 
             <MoreAboutTopic articleId={article.id} />
