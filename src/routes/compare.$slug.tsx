@@ -11,7 +11,7 @@ export const Route = createFileRoute("/compare/$slug")({
     if (result.status !== "found") throw notFound();
     return result.data;
   },
-  head: ({ loaderData }) => toTanStackHead(compareMetadata(loaderData)),
+  head: ({ loaderData }) => loaderData ? toTanStackHead(compareMetadata(loaderData)) : {},
   component: CompareRoute,
 });
 
