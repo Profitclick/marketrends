@@ -13,7 +13,8 @@ export const Route = createFileRoute("/$slug")({
     return result.data;
   },
   head: ({ loaderData }) => {
-    const article = loaderData.selectedArticle!;
+    if (!loaderData?.selectedArticle) return {};
+    const article = loaderData.selectedArticle;
     const author = getAuthorForArticle(article.id);
     const articleIndex = Math.max(0, loaderData.articles.findIndex((item) => item.id === article.id));
     return toTanStackHead(articleMetadata(article, author, articleIndex));
