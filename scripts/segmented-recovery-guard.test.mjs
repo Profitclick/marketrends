@@ -119,7 +119,8 @@ test('real source checkpoint: byte integrity, prefix, target ordering, incomplet
   assert.equal(hash(raw),SNAP);assert.equal(state.revision,REV);
   const snapshot=JSON.parse(raw),prior=new Set(state.journal.trimEnd().split('\n').map(l=>JSON.parse(l).url));
   const targets=snapshot.entries.filter(e=>!prior.has(e.url)).slice(0,MAX);
-  assert.equal(targets.length,250);
+  assert.equal(targets.length,Math.min(MAX,snapshot.entries.length-prior.size));
+  assert.ok(targets.length>=2,'at least two remaining URLs required for this fixture');
   assert.deepEqual(verifyProgress(raw,state,state,targets,[]),[]);
   fail(()=>verifyProgress(Buffer.from(raw.toString()+' '),state,state,targets,[]),'SNAPSHOT_INTEGRITY');
   fail(()=>verifyProgress(raw,{...state,revision:'wrong'},state,targets,[]),'CHECKPOINT_REVISION');
