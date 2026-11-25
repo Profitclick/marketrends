@@ -1,0 +1,213 @@
+name: MIGRATE-02.3A.7.2 controlled 100 URL recovery with passive profiling
+on:
+  push:
+    branches: [diagnostics/migrate02-3a7-2]
+    paths: [.github/workflows/migrate02-controlled-recovery.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: migrate02-release-regression
+  cancel-in-progress: false
+jobs:
+  diagnostics:
+    if: github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify original artifact and exact checkout
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          mkdir -p "$RUNNER_TEMP/migrate02-legacy" "$RUNNER_TEMP/migrate02-evidence"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15046889060" > "$RUNNER_TEMP/migrate02-evidence/source-artifact.json"
+          jq -e '.id == 15046889060 and .expired == false and .workflow_run.id == 45666486565 and .workflow_run.head_sha == "51230bb293a46a8275a0cc81017b51336a86a8ed"' "$RUNNER_TEMP/migrate02-evidence/source-artifact.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15046889060/zip" > "$RUNNER_TEMP/migrate02-original.zip"
+          echo "6bd7fe185db1a6bb4cfc974e449e88318398aa10a28f382602f1395a49fe3072  $RUNNER_TEMP/migrate02-original.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/migrate02-original.zip" -d "$RUNNER_TEMP/migrate02-legacy"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import assert from 'node:assert/strict';
+          import {auditRevision,openCheckpoint} from './scripts/full-sitemap-checkpoint.mjs';
+          const revision = auditRevision(true);
+          const dir = path.join(process.env.RUNNER_TEMP,'migrate02-legacy/recovery');
+          const c = openCheckpoint({dir,resume:true,revision,limit:100});
+          assert.equal(c.snapshot.entries.length,5276);
+          assert.equal(c.latest().length,971);
+          assert.ok(c.latest().every(r=>r.status===200 && r.issues.length===0));
+          assert.equal(c.pending.length,100);
+          assert.ok(c.pending.every(r=>r.kind==='article' && !c.latest().some(x=>x.url===r.url)));
+          const history=fs.readFileSync(path.join(dir,'attempt-history.jsonl'),'utf8');
+          assert.equal(history.trim().split('\n').length,974);
+          const state=JSON.parse(fs.readFileSync(path.join(dir,'checkpoint.json'),'utf8'));
+          assert.equal(state.journal,history);
+          const evidence=path.join(process.env.RUNNER_TEMP,'migrate02-evidence');
+          fs.cpSync(dir,path.join(evidence,'recovery'),{recursive:true,errorOnExist:true});
+          fs.writeFileSync(path.join(evidence,'targets.json'),JSON.stringify(c.pending,null,2));
+          console.log(JSON.stringify({revision,priorPassed:971,targets:c.pending.length}));
+          JS
+      - name: Offline recovery tests
+        run: node --test scripts/full-sitemap-checkpoint.test.mjs
+      - name: Install and compile SSR only
+        run: |
+          npm ci --no-audit --no-fund
+          ./node_modules/.bin/vite build
+          test -f .output/server/wrangler.json
+          test -f .env
+          test -z "$(git status --porcelain --untracked-files=no)"
+      - name: Start isolated runtime and run exactly one bounded batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/migrate02-evidence"
+          cp .env .output/server/.dev.vars
+          # Never send an HTTP readiness request; TCP only.
+          setsid npx --yes wrangler@4.168.0 dev --config .output/server/wrangler.json --no-bundle --ip 127.0.0.1 --port 3000 > "$RUNNER_TEMP/migrate02-runtime.raw.log" 2>&1 &
+          server=$!
+          sampler=""
+          cleanup() {
+            if [ -n "$sampler" ]; then kill "$sampler" 2>/dev/null || true; wait "$sampler" 2>/dev/null || true; fi
+            kill -- "-$server" 2>/dev/null || true
+            wait "$server" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for i in $(seq 1 60); do
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            if (echo > /dev/tcp/127.0.0.1/3000) 2>/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          python3 -u - "$server" > "$evidence/runtime-resources.jsonl" <<'PY' &
+          import os, sys, time, json, pathlib
+          group=int(sys.argv[1])
+          hz=os.sysconf("SC_CLK_TCK")
+          page=os.sysconf("SC_PAGE_SIZE")
+          prev={}
+          while True:
+              now=time.monotonic()
+              rows=[]
+              for p in pathlib.Path('/proc').iterdir():
+                  if not p.name.isdigit(): continue
+                  try:
+                      raw=(p/'stat').read_text()
+                      end=raw.rindex(')')
+                      fields=raw[end+2:].split()
+                      if int(fields[2])!=group: continue
+                      pid=int(p.name)
+                      key=(pid,int(fields[19]))
+                      ticks=int(fields[11])+int(fields[12])
+                      old=prev.get(key)
+                      cpu=None if old is None or now<=old[0] else 100*(ticks-old[1])/hz/(now-old[0])
+                      prev[key]=(now,ticks)
+                      rows.append(dict(pid=pid,comm=raw[raw.index('(')+1:end],rssBytes=int(fields[21])*page,cpuDeltaPct=cpu,cpuTicks=ticks))
+                  except (OSError,ValueError,IndexError): continue
+              print(json.dumps(dict(epoch=time.time(),monotonic=now,processes=rows)),flush=True)
+              time.sleep(1)
+          PY
+          sampler=$!
+          set +e
+          MARKETRENDS_AUDIT_ORIGIN=http://127.0.0.1:3000 \
+          MARKETRENDS_AUDIT_RESUME=1 \
+          MARKETRENDS_AUDIT_OUTPUT="$evidence/recovery" \
+          MARKETRENDS_AUDIT_BATCH_LIMIT=100 \
+          node scripts/full-sitemap-ssr-audit.mjs > "$evidence/audit.log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$evidence/audit-exit-code.txt"
+          # Keep the same process group alive, with no additional HTTP requests.
+          python3 -c 'import time; print(time.monotonic())' > "$evidence/passive-start-monotonic.txt"
+          sleep 60
+          python3 -c 'import time; print(time.monotonic())' > "$evidence/passive-end-monotonic.txt"
+          kill -0 "$server"
+          kill -0 "$sampler"
+          # The release audit intentionally exits nonzero for incomplete coverage.
+          # Distinguish successful diagnostic collection from a release PASS.
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import assert from 'node:assert/strict';
+          const dir=path.join(process.env.RUNNER_TEMP,'migrate02-evidence');
+          const targets=JSON.parse(fs.readFileSync(path.join(dir,'targets.json'),'utf8'));
+          const s=JSON.parse(fs.readFileSync(path.join(dir,'recovery/summary.json'),'utf8'));
+          const history=fs.readFileSync(path.join(dir,'recovery/attempt-history.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+          const rows=history.slice(974);
+          assert.equal(s.revision,'091837a1a5b1ed2be2c41fcba2d6032f2dfc3395');
+          assert.equal(s.complete,false);
+          assert.ok(rows.length>=1 && rows.length<=100);
+          assert.equal(rows.length,s.batchAttempted);
+          assert.ok(rows.every(r=>targets.some(t=>t.url===r.url)));
+          assert.equal(new Set(rows.map(r=>r.url)).size,rows.length);
+          assert.equal(s.priorAttempted,971);
+          assert.equal(s.attempted,971+rows.length);
+          const sorted=rows.filter(r=>Number.isFinite(r.ttfbMs)).map(r=>r.ttfbMs).sort((a,b)=>a-b);
+          const quantile=q=>sorted.length?sorted[Math.ceil(q*sorted.length)-1]:null;
+          const report={batchAttempted:rows.length,batchPassed:rows.filter(r=>!r.issues.length).length,batchFailed:rows.filter(r=>r.issues.length).length,ttfbP50:quantile(.5),ttfbP95:quantile(.95),ttfbMax:sorted.at(-1)??null,releaseComplete:false,stopReason:s.stopReason,rows};
+          const samples=fs.readFileSync(path.join(dir,'runtime-resources.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+          const processes={};
+          for(const sample of samples) for(const p of sample.processes){
+            const key=p.pid+':'+p.comm;
+            const x=processes[key]??={samples:0,firstRssBytes:p.rssBytes,lastRssBytes:p.rssBytes,peakRssBytes:0,peakCpuDeltaPct:null};
+            x.samples++;x.lastRssBytes=p.rssBytes;x.peakRssBytes=Math.max(x.peakRssBytes,p.rssBytes);
+            if(p.cpuDeltaPct!==null)x.peakCpuDeltaPct=Math.max(x.peakCpuDeltaPct??0,p.cpuDeltaPct);
+          }
+          const passiveStart=Number(fs.readFileSync(path.join(dir,'passive-start-monotonic.txt'),'utf8'));
+          const passiveEnd=Number(fs.readFileSync(path.join(dir,'passive-end-monotonic.txt'),'utf8'));
+          assert.ok(Number.isFinite(passiveStart) && passiveEnd-passiveStart>=60);
+          const idle=samples.filter(x=>x.monotonic>=passiveStart && x.monotonic<=passiveEnd);
+          assert.ok(idle.length>=2);
+          assert.ok(idle.at(-1).monotonic-idle[0].monotonic>=58);
+          const idleProcesses={};
+          for(const sample of idle) for(const p of sample.processes){
+            const key=p.pid+':'+p.comm;
+            const x=idleProcesses[key]??={samples:0,firstRssBytes:p.rssBytes,lastRssBytes:p.rssBytes,peakRssBytes:0,minRssBytes:p.rssBytes,peakCpuDeltaPct:null};
+            x.samples++;x.lastRssBytes=p.rssBytes;x.peakRssBytes=Math.max(x.peakRssBytes,p.rssBytes);x.minRssBytes=Math.min(x.minRssBytes,p.rssBytes);
+            if(p.cpuDeltaPct!==null)x.peakCpuDeltaPct=Math.max(x.peakCpuDeltaPct??0,p.cpuDeltaPct);
+          }
+          report.resourceSamples=samples.length;report.processes=processes;
+          report.passive={durationSeconds:passiveEnd-passiveStart,samples:idle.length,sampleSpanSeconds:idle.at(-1).monotonic-idle[0].monotonic,processes:idleProcesses};
+          report.activeResourceSamples=samples.filter(x=>x.monotonic<passiveStart).length;
+          fs.writeFileSync(path.join(dir,'diagnostic-results.json'),JSON.stringify(report,null,2));
+          console.log(JSON.stringify(report,null,2));
+          JS
+      - name: Collect sanitized runtime log
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/migrate02-evidence"
+          python3 - <<'PY'
+          import pathlib, os, re
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])
+          source=root/"migrate02-runtime.raw.log"
+          if source.exists():
+              # Retain only operational/error lines, redact potential credentials.
+              lines=[]
+              for line in source.read_text(errors="replace").splitlines():
+                  if not re.search(r'error|warn|timeout|ready|GET |exception|workerd|wrangler',line,re.I): continue
+                  if re.search(r'authorization|apikey|api.key|secret|token|publishable|password|cookie|binding|environment variable',line,re.I): continue
+                  line=re.sub(r'https?://[^\s"<>]+','[URL redacted]',line)
+                  line=re.sub(r'[A-Za-z0-9_-]{25,}(?:\.[A-Za-z0-9_-]{10,})*','[long value redacted]',line)
+                  lines.append(line)
+              (root/"migrate02-evidence/runtime.log").write_text("\n".join(lines)+"\n")
+          PY
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migrate02-controlled-recovery-100
+          path: ${{ runner.temp }}/migrate02-evidence/
+          retention-days: 14
+          if-no-files-found: error
