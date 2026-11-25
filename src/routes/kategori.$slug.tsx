@@ -12,7 +12,7 @@ export const Route = createFileRoute("/kategori/$slug")({
     return result.data;
   },
   head: ({ loaderData, params }) =>
-    toTanStackHead(categoryMetadata(params.slug, loaderData.category)),
+    loaderData ? toTanStackHead(categoryMetadata(params.slug, loaderData.category)) : {},
   component: CategoryRoute,
 });
 
