@@ -38,3 +38,12 @@ Begge kjøringer verifiserte kildeartifactets SHA-256 og besto 48 tester med nul
 Ett av to samtidige reservasjonsforsøk med Actions-tokenet vant på den syntetiske ref-en. Eierkjøringen satte den til `QUARANTINE`. Den andre Actions-kjøringen fikk avslag og bekreftet terminal commit `5e2be3db6264e5fc2ae4aab74386b3fdde1e6b8f`. Det frosne kildecheckpointets registernøkkel hadde ingen tilsvarende ref etter verifiseringen. `main` sto fortsatt på `71b3410d61b9a286845b2347a6fe35745396abbe` og `feat/tanstack-migration` på `091837a1a5b1ed2be2c41fcba2d6032f2dfc3395`.
 
 **Offline-gate PASS. Første live-segment krever separat godkjenning.** Samspillet med den isolerte SSR-kjøretiden kan verifiseres i den første godkjente kjøringen. Foreslått omfang er én URL fra kildeartifact `15049826258`.
+
+## Første isolerte live-segment
+
+Det separat godkjente segmentet kjørte på `1a24a6959c698cf9d590dddd052c8d4636e0e2b5` med batchgrense én. [Actions-run 45704914324](https://github.com/Profitclick/marketrends/actions/runs/45704914324)
+
+- Én GET ble registrert. HTTP 200 og null evaluatorfunn ga 1 322 beståtte URL-er av 5 276 og 1 325 journalrader. Runtime-loggen og journalen hadde én match, null manglende og null ekstra GET-er.
+- HTTP-TTFB var 2 791,4 ms. Guard-overhead var 12,4 ms og evaluatorens totale tid 2 814 ms. Passiv observasjon var 120,008 sekunder med 122 prøver og et lengste måleintervall på 1 005 ms.
+- ZIP-integritet og SHA-256 `0433ad4dfe9e1e8294824d1ac3fa9e0a502c0d755784cc48828252864f0c9752` ble verifisert etter nedlasting. Registercommit `80c7aa26ee1fe886b26fd508a7017501e4ff3fa8` har terminal `PASS` og binder denne digesten til artifactet. [Artifact 15065670674](https://github.com/Profitclick/marketrends/actions/runs/45704914324/artifacts/15065670674)
+- Kildecheckpoint `15049826258` er konsumert. En eventuell videre separat godkjent recovery må bruke `15065670674`. Dette enkeltsegmentet godkjenner bare én URL. Ingen oppskalering ble startet.
