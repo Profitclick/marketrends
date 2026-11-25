@@ -44,7 +44,7 @@ export function homepageMetadata(): RouteSeoMetadata {
   return {
     title: "Norsk Fintech, Krypto & Markedsnyheter",
     description: "Norges ledende kilde for markedstrender, fintech, krypto, AI og startup-nyheter. Oppdatert døgnet rundt med de siste nyhetene innen teknologi og finans.",
-    canonicalUrl: SITE_URL,
+    canonicalUrl: `${SITE_URL}/`,
     ogType: "website",
   };
 }
