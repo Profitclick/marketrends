@@ -16,7 +16,7 @@ jobs:
       SEGMENT_PRIOR_PASSED: '1321'
       SEGMENT_PRIOR_HISTORY: '1324'
       SEGMENT_LIMIT: '250'
-      REGISTER_PHASE: claim
+      REGISTER_PHASE: verify
     steps:
       - uses: actions/checkout@v4
         with:
