@@ -11,7 +11,7 @@ export const Route = createFileRoute("/knowledge/$slug")({
     if (result.status !== "found") throw notFound();
     return result.data;
   },
-  head: ({ loaderData }) => toTanStackHead(knowledgeMetadata(loaderData)),
+  head: ({ loaderData }) => loaderData ? toTanStackHead(knowledgeMetadata(loaderData)) : {},
   component: KnowledgeRoute,
 });
 
