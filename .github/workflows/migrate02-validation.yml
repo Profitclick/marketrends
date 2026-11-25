@@ -1,15 +1,23 @@
-name: MIGRATE-02.1 release regression
+name: MIGRATE-02.2 release verification
 on:
   push:
     branches: [feat/tanstack-migration]
     paths: ['src/**', 'scripts/**', 'package.json', 'package-lock.json', 'bun.lock', 'vite.config.ts', 'tsconfig*.json', '.github/workflows/migrate02-validation.yml']
   workflow_dispatch:
+    inputs:
+      full_sitemap:
+        description: Run the bounded full sitemap audit against isolated SSR
+        type: boolean
+        default: false
 permissions:
   contents: read
+concurrency:
+  group: migrate02-release-regression
+  cancel-in-progress: false
 jobs:
   validation:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -52,6 +60,22 @@ jobs:
           /tmp/marketrends-browser/node_modules/.bin/playwright install --with-deps chromium
           cp scripts/migrate02-browser.mjs /tmp/marketrends-browser/test.mjs
           node /tmp/marketrends-browser/test.mjs
+      - name: Full sitemap release audit
+        if: ${{ (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-sitemap-audit]')) || (github.event_name == 'workflow_dispatch' && inputs.full_sitemap) }}
+        env:
+          MARKETRENDS_AUDIT_ORIGIN: http://127.0.0.1:3000
+        run: node scripts/full-sitemap-ssr-audit.mjs
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migrate02-audit-evidence
+          path: |
+            seo-audit/http-audit.json
+            seo-audit/http-audit.md
+            seo-audit/full-sitemap/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Stop isolated server
         if: always()
         run: |
