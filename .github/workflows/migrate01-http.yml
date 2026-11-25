@@ -1,4 +1,4 @@
-name: MIGRATE-01 local HTTP truth v6
+name: MIGRATE-01 local HTTP truth v7
 on:
   push:
     branches: [feat/tanstack-migration]
