@@ -1,10 +1,10 @@
-name: MIGRATE-02.3A.7.4.1 offline preparation verification
+name: MIGRATE-02.3A.7.4.2 offline register verification
 on:
   push:
     branches: [diagnostics/migrate02-3a7-4-1]
     paths: [.github/workflows/migrate02-segmented-prep.yml]
 permissions:
-  contents: read
+  contents: write
   actions: read
 jobs:
   offline:
@@ -16,6 +16,7 @@ jobs:
       SEGMENT_PRIOR_PASSED: '1321'
       SEGMENT_PRIOR_HISTORY: '1324'
       SEGMENT_LIMIT: '250'
+      REGISTER_PHASE: claim
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,7 +43,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15049826258" > "$RUNNER_TEMP/prep-evidence/source-artifact.json"
           jq -e '.id==15049826258 and .expired==false and .digest=="sha256:ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671" and .workflow_run.id==45669533453 and .workflow_run.head_sha=="4cccbfe0c787e69eda0ef76d246a756fd34ed312"' "$RUNNER_TEMP/prep-evidence/source-artifact.json" >/dev/null
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15049826258/zip" > "$RUNNER_TEMP/prep-source.zip"
-          echo "$SEGMENT_SOURCE_SHA  $RUNNER_TEMP/prep-source.zip" | sha256sum -c -
+          echo "$SEGMENT_SOURCE_SHA  $RUNNER_TEMP/prep-source.zip" | sha256sum -c - | tee "$RUNNER_TEMP/prep-evidence/source-digest.log"
           unzip -tq "$RUNNER_TEMP/prep-source.zip"
           unzip -q "$RUNNER_TEMP/prep-source.zip" -d "$RUNNER_TEMP/prep-source"
       - name: Offline tests only - no SSR build, runtime, or probes
@@ -50,15 +51,24 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
-          node --test scripts/full-sitemap-checkpoint.test.mjs | tee "$SEGMENT_EVIDENCE/recovery-tests.log"
-          SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segmented-recovery-guard.test.mjs | tee "$SEGMENT_EVIDENCE/guard-tests.log"
+          SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test --experimental-test-coverage scripts/full-sitemap-checkpoint.test.mjs ../guard-src/scripts/segment*.test.mjs | tee "$SEGMENT_EVIDENCE/offline-tests.log"
           node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
           jq -e '.prior==1321 and .historyCount==1324 and .limit==250' "$SEGMENT_EVIDENCE/segment-plan.json"
           jq -e 'length==250' "$SEGMENT_EVIDENCE/targets.json"
           test ! -e "$SEGMENT_EVIDENCE/probe-starts.jsonl"
           test ! -e "$SEGMENT_EVIDENCE/runtime-resources.jsonl"
           test ! -e "$SEGMENT_EVIDENCE/segment-gate.json"
-          printf '{"status":"OFFLINE_PREPARATION_PASS","ssrProbes":0,"liveAuthorized":false}\n' > "$SEGMENT_EVIDENCE/offline-gate.json"
+      - name: Exercise the synthetic register with this run's GitHub token
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_CONFIG_COUNT: '2'
+          GIT_CONFIG_KEY_0: credential.helper
+          GIT_CONFIG_VALUE_0: ''
+          GIT_CONFIG_KEY_1: credential.helper
+          GIT_CONFIG_VALUE_1: '!gh auth git-credential'
+        run: node guard-src/scripts/verify-segment-register-actions.mjs
+      - name: Record the offline gate
+        run: printf '{"status":"OFFLINE_PREPARATION_PASS","ssrProbes":0,"liveAuthorized":false}\n' > "$SEGMENT_EVIDENCE/offline-gate.json"
       - uses: actions/upload-artifact@v4
         if: always() && env.SEGMENT_EVIDENCE != ''
         with:
