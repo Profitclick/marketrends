@@ -1,4 +1,4 @@
-name: MIGRATE-01 build validation v6
+name: MIGRATE-01 build validation v7
 on:
   push:
     branches: [feat/tanstack-migration]
