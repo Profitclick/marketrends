@@ -8,6 +8,7 @@ import {performance} from 'node:perf_hooks';
 import {setTimeout as delay} from 'node:timers/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {checkpointKey,QUARANTINE_RECOVERY,verifyReservation} from './segment-register.mjs';
+import {checkApprovedBaseline,hasApprovedJournalPrefix,HEADLINE_BASELINE,HEADLINE_URL} from './segment-headline-baseline.mjs';
 import {measureHttp} from './segment-http.mjs';
 import {checkPulse,MAX_GAP_MS,monotonicMs,SAMPLE_INTERVAL_MS,supervise,watchChild} from './segment-watchdog.mjs';
 
@@ -231,15 +232,22 @@ async function prepare(){
   const source=process.env.SEGMENT_SOURCE_DIR,out=process.env.SEGMENT_EVIDENCE;
   const sourceId=process.env.SEGMENT_SOURCE_ID,sourceSha=process.env.SEGMENT_SOURCE_SHA;
   const prior=Number(process.env.SEGMENT_PRIOR_PASSED),historyCount=Number(process.env.SEGMENT_PRIOR_HISTORY);
-  requireThat(integer(prior)&&prior>=1321&&prior<=INVENTORY&&historyCount===prior+3,'SOURCE_COUNTS');
+  requireThat(integer(prior)&&prior>=1321&&prior<=INVENTORY&&integer(historyCount),'SOURCE_COUNTS');
   requireThat(/^\d+$/.test(sourceId)&&/^[a-f0-9]{64}$/.test(sourceSha),'SOURCE_IDENTITY');
   requireThat(!fs.existsSync(path.join(source,'guard-stop.json')),'SOURCE_QUARANTINED');
+  const approvedSource=sourceId===HEADLINE_BASELINE.id;
+  let baselineArtifactId;
   if(sourceId===INITIAL_ID){
     requireThat(sourceSha===INITIAL_SHA&&prior===1321&&historyCount===1324,'INITIAL_SOURCE_PIN');
+  }else if(approvedSource){
+    baselineArtifactId=HEADLINE_BASELINE.id;
   }else{
     const gate=json(path.join(source,'segment-gate.json'));
     requireThat(gate.status==='PASS'&&gate.recoveryRevision===REV&&gate.snapshotSha256===SNAP&&gate.passed===prior&&gate.historyLength===historyCount&&gate.releaseComplete===(prior===INVENTORY),'SOURCE_GATE_NOT_PASS');
+    baselineArtifactId=gate.baselineArtifactId;
   }
+  requireThat(baselineArtifactId===undefined||baselineArtifactId===HEADLINE_BASELINE.id,'SOURCE_BASELINE_LINEAGE');
+  requireThat(historyCount===prior+(baselineArtifactId===undefined?3:4),'SOURCE_COUNTS');
   const dir=path.join(source,'recovery'),state=json(path.join(dir,'checkpoint.json'));
   const raw=fs.readFileSync(path.join(dir,'snapshot.json'));
   requireThat(hash(raw)===SNAP&&state.snapshotSha256===SNAP&&hash(state.journal)===state.journalSha256&&state.revision===REV,'SOURCE_CHECKPOINT_INTEGRITY');
@@ -247,13 +255,28 @@ async function prepare(){
   requireThat(!fs.existsSync(path.join(dir,'audit.lock')),'SOURCE_LOCKED');
   const limit=batchSize(Number(process.env.SEGMENT_LIMIT),INVENTORY-prior);
   const c=openCheckpoint({dir,resume:true,revision:REV,limit:Math.max(1,limit)});
-  requireThat(c.snapshot.entries.length===INVENTORY&&c.latest().length===prior&&c.latest().every(r=>r.status===200&&!r.issues.length),'SOURCE_RESULTS');
+  const latest=c.latest();
+  const failures=latest.filter(r=>r.status!==200||r.issues.length);
+  const unresolved=approvedSource?1:0;
+  requireThat(c.snapshot.entries.length===INVENTORY&&latest.length===prior+unresolved&&failures.length===unresolved,'SOURCE_RESULTS');
+  if(approvedSource){
+    const [repair]=failures;
+    requireThat(repair.url===HEADLINE_URL&&repair.status===200&&equal(repair.issues,['ARTICLE_HEADLINE_MISMATCH'])&&
+      c.pending[0]?.url===HEADLINE_URL,'SOURCE_HEADLINE_RESULT');
+  }
   requireThat(equal(lines(fs.readFileSync(path.join(dir,'results.jsonl'),'utf8')),c.latest()),'SOURCE_EXPORT_DIVERGENCE');
   const oldSummary=json(path.join(dir,'summary.json'));
-  requireThat(oldSummary.revision===REV&&oldSummary.complete===(prior===INVENTORY)&&oldSummary.passed===prior&&oldSummary.failed===0&&oldSummary.untested===INVENTORY-prior,'SOURCE_SUMMARY');
-  const passed=new Set(c.latest().map(r=>r.url));
+  requireThat(oldSummary.revision===REV&&oldSummary.complete===(prior===INVENTORY)&&oldSummary.passed===prior&&oldSummary.failed===unresolved&&oldSummary.untested===INVENTORY-prior-unresolved,'SOURCE_SUMMARY');
+  const passed=new Set(latest.filter(r=>r.status===200&&!r.issues.length).map(r=>r.url));
   requireThat(c.pending.length===limit&&c.pending.every(r=>r.kind==='article'&&!passed.has(r.url)),'SOURCE_TARGETS');
   const plan={sourceId,sourceSha,prior,historyCount,limit,snapshotSha256:SNAP,recoveryRevision:REV,sourceJournalSha256:state.journalSha256};
+  if(baselineArtifactId!==undefined){
+    requireThat(hasApprovedJournalPrefix(state.journal)&&(!approvedSource?prior>HEADLINE_BASELINE.prior:true),'SOURCE_BASELINE_JOURNAL');
+    plan.baselineArtifactId=baselineArtifactId;
+  }
+  if(approvedSource){
+    checkApprovedBaseline(plan,json(path.join(source,'baseline-approval.json')),checkpointKey(plan));
+  }
   const quarantine=process.env.SEGMENT_QUARANTINE_DIR;
   const priorStop=quarantine?verifyZeroProbeQuarantine(source,quarantine,plan):null;
   if(priorStop){
@@ -288,7 +311,8 @@ async function completeInventory(){
   'INVENTORY_NOT_COMPLETE');
   atomic(path.join(out,'segment-gate.json'),{status:'PASS',recoveryRevision:REV,snapshotSha256:SNAP,
     passed:plan.prior,historyLength:plan.historyCount,batchAttempted:0,releaseComplete:true,
-    sourceArtifactId:plan.sourceId,sourceSha256:plan.sourceSha});
+    sourceArtifactId:plan.sourceId,sourceSha256:plan.sourceSha,
+    ...(plan.baselineArtifactId===undefined?{}:{baselineArtifactId:plan.baselineArtifactId})});
 }
 async function live(){
   const out=process.env.SEGMENT_EVIDENCE;
@@ -318,6 +342,18 @@ async function live(){
     }
   });
 }
+export function verifyBaselineFirstResult(plan,rows){
+  if(plan.sourceId===HEADLINE_BASELINE.id&&rows.length>0){
+    requireThat(rows[0].url===HEADLINE_URL&&rows[0].status===200&&!rows[0].issues.length,'BASELINE_HEADLINE_STILL_FAILING');
+  }
+}
+
+export function verifySegmentSummary(summary,plan,attempted){
+  const priorAttempted=plan.prior+(plan.sourceId===HEADLINE_BASELINE.id?1:0);
+  requireThat(summary.batchAttempted===attempted&&summary.priorAttempted===priorAttempted&&
+    summary.attempted===plan.prior+attempted&&summary.snapshotUrls===INVENTORY,'FINAL_SUMMARY_DIVERGENCE');
+}
+
 export async function auditChild(transport=measureHttp){
   requireThat(process.connected,'WATCHDOG_REQUIRED');
   const out=process.env.SEGMENT_EVIDENCE,dir=path.join(out,'recovery');
@@ -342,6 +378,7 @@ export async function auditChild(transport=measureHttp){
       const persisted=fs.existsSync(file)?lines(fs.readFileSync(file,'utf8')):[];
       requireThat(equal(persisted,timings),'HTTP_TIMING_EVIDENCE_DIVERGENCE');
       verifyHttpTimings(rows,persisted);
+      verifyBaselineFirstResult(plan,rows);
       return rows;
     });
     async function checkLog(rows){
@@ -395,7 +432,7 @@ export async function auditChild(transport=measureHttp){
     await checkLog(rows);
     const state=json(path.join(dir,'checkpoint.json')),c=openCheckpoint({dir,resume:true,revision:REV,limit:1});
     requireThat(equal(lines(fs.readFileSync(path.join(dir,'results.jsonl'),'utf8')),c.latest())&&fs.readFileSync(path.join(dir,'attempt-history.jsonl'),'utf8')===state.journal,'FINAL_EXPORT_DIVERGENCE');
-    requireThat(summary.batchAttempted===rows.length&&summary.priorAttempted===plan.prior&&summary.attempted===plan.prior+rows.length&&summary.snapshotUrls===INVENTORY,'FINAL_SUMMARY_DIVERGENCE');
+    verifySegmentSummary(summary,plan,rows.length);
     const samples=lines(fs.readFileSync(path.join(out,'runtime-resources.jsonl'),'utf8'));
     let previous;
     for(const {telemetry} of samples){
@@ -416,7 +453,8 @@ export async function auditChild(transport=measureHttp){
     requireThat(rows.length===plan.limit&&stats.failed===0&&summary.failed===0&&summary.passed===plan.prior+rows.length&&summary.transients===0&&summary.complete===(summary.passed===INVENTORY),'SEGMENT_NOT_PASS');
     atomic(path.join(out,'segment-result.json'),{status:'PASS',recoveryRevision:REV,snapshotSha256:SNAP,passed:summary.passed,
       historyLength:lines(state.journal).length,sourceArtifactId:plan.sourceId,sourceSha256:plan.sourceSha,batchAttempted:rows.length,
-      releaseComplete:summary.complete,sourceCheckpointKey:checkpointKey(plan),registerRunId:process.env.GITHUB_RUN_ID});
+      releaseComplete:summary.complete,sourceCheckpointKey:checkpointKey(plan),registerRunId:process.env.GITHUB_RUN_ID,
+      ...(plan.baselineArtifactId===undefined?{}:{baselineArtifactId:plan.baselineArtifactId})});
     watchdog.assertFresh();
     watchdog.close();
     process.exit(0);

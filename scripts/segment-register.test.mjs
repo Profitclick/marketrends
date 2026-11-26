@@ -97,3 +97,15 @@ test('the pinned zero-probe authorization has a single independent reservation k
   assert.throws(() => updateRegister(remote, reservationFor(continued,'9'), 'RESERVED'), /REGISTER_WRITE_FAILED/);
   assert.throws(() => updateRegister(remote, original, 'RESERVED'), /REGISTER_WRITE_FAILED/);
 });
+
+test('a registered PASS must preserve the approved baseline lineage', t => {
+  const remote = repo(t);
+  const baselineArtifactId = '15080475107';
+  const reservation = reservationFor({...plan,baselineArtifactId},'7');
+  updateRegister(remote,reservation,'RESERVED');
+  updateRegister(remote,reservation,'PASS',artifact);
+  const next = {...plan,sourceId:artifact.id,sourceSha:artifact.sha256};
+  const gate = {sourceCheckpointKey:reservation.key,registerRunId:'7'};
+  verifyRegisteredSource(remote,{...next,baselineArtifactId},gate);
+  assert.throws(()=>verifyRegisteredSource(remote,next,gate),/REGISTER_SOURCE_NOT_PASS/);
+});

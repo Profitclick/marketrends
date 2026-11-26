@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 
+import {checkApprovedBaseline,headlinePreflight,HEADLINE_BASELINE} from './segment-headline-baseline.mjs';
+
 const hex = (s, size) => typeof s === 'string' && s.length === size && /^[a-f0-9]+$/.test(s);
 const id = s => typeof s === 'string' && /^[1-9][0-9]*$/.test(s);
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -44,7 +46,8 @@ export function reservationFor(plan, runId) {
     Number.isSafeInteger(plan.limit) && plan.limit > 0 && plan.limit <= 250, 'REGISTER_RESERVATION');
   return {version: 1, status: 'RESERVED', key: checkpointKey(plan), runId,
     sourceId: plan.sourceId, sourceSha: plan.sourceSha, limit: plan.limit,
-    ...(plan.quarantineCommit === undefined ? {} : {quarantineCommit: plan.quarantineCommit})};
+    ...(plan.quarantineCommit === undefined ? {} : {quarantineCommit: plan.quarantineCommit}),
+    ...(plan.baselineArtifactId === undefined ? {} : {baselineArtifactId: plan.baselineArtifactId})};
 }
 
 export function verifyReservation(plan, runId, reservation) {
@@ -107,7 +110,8 @@ export function verifyRegisteredSource(remote, plan, gate) {
     const record = JSON.parse(git(['show', '-s', '--format=%s', 'FETCH_HEAD']));
     check(record.version === 1 && record.status === 'PASS' && record.key === key &&
       record.runId === gate.registerRunId && record.artifact?.id === plan.sourceId &&
-      record.artifact?.sha256 === plan.sourceSha, 'REGISTER_SOURCE_NOT_PASS');
+      record.artifact?.sha256 === plan.sourceSha && record.baselineArtifactId === plan.baselineArtifactId,
+      'REGISTER_SOURCE_NOT_PASS');
   } catch (error) {
     if ('stderr' in error) throw new Error('REGISTER_SOURCE_UNAVAILABLE');
     throw error;
@@ -137,6 +141,18 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
         const current = execFileSync('git', ['ls-remote', '--exit-code', remote, ref],
           {encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000}).trim();
         check(current === plan.quarantineCommit + '\t' + ref, 'REGISTER_QUARANTINE_MOVED');
+      }
+      if (plan.sourceId === HEADLINE_BASELINE.id) {
+        const pinned = HEADLINE_BASELINE;
+        check(process.env.SEGMENT_SOURCE_RUN===pinned.run,'REGISTER_HEADLINE_SOURCE_RUN');
+        const manifest=read(path.join(process.env.SEGMENT_SOURCE_DIR,'baseline-approval.json'));
+        checkApprovedBaseline(plan,manifest,reservation.key);
+        const expected = headlinePreflight([{slug:pinned.slug,title:pinned.title}]);
+        check(same(read(path.join(out,'headline-preflight.json')),expected),'REGISTER_HEADLINE_PREFLIGHT');
+        const ref = registerPrefix + pinned.quarantineKey;
+        const current = execFileSync('git', ['ls-remote', '--exit-code', remote, ref],
+          {encoding:'utf8',stdio:['ignore','pipe','ignore'],timeout:30000}).trim();
+        check(current === pinned.quarantineCommit + '\t' + ref,'REGISTER_HEADLINE_QUARANTINE_MOVED');
       }
       updateRegister(remote, reservation, 'RESERVED');
       fs.writeFileSync(file, JSON.stringify(reservation) + '\n', {flag: 'wx'});

@@ -66,7 +66,7 @@ jobs:
           [[ "$SEGMENT_SOURCE_HEAD" =~ ^[a-f0-9]{40}$ ]]
           [[ "$SEGMENT_LIMIT" =~ ^[1-9][0-9]{0,2}$ ]] && (( SEGMENT_LIMIT <= 250 ))
           [[ "$SEGMENT_PRIOR_PASSED" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_PASSED >= 1321 && SEGMENT_PRIOR_PASSED <= 5276 ))
-          [[ "$SEGMENT_PRIOR_HISTORY" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_HISTORY == SEGMENT_PRIOR_PASSED + 3 ))
+          [[ "$SEGMENT_PRIOR_HISTORY" =~ ^[0-9]+$ ]] && (( SEGMENT_PRIOR_HISTORY == SEGMENT_PRIOR_PASSED + 3 || SEGMENT_PRIOR_HISTORY == SEGMENT_PRIOR_PASSED + 4 ))
           echo "SEGMENT_EVIDENCE=$RUNNER_TEMP/segment-evidence" >> "$GITHUB_ENV"
           echo "SEGMENT_SOURCE_DIR=$RUNNER_TEMP/segment-source" >> "$GITHUB_ENV"
           echo "SEGMENT_RAW_LOG=$RUNNER_TEMP/segment-runtime.raw.log" >> "$GITHUB_ENV"
@@ -98,6 +98,11 @@ jobs:
             test "$SEGMENT_SOURCE_RUN" = 45669533453
             test "$SEGMENT_SOURCE_HEAD" = 4cccbfe0c787e69eda0ef76d246a756fd34ed312
             test "$SEGMENT_SOURCE_SHA" = ab7879472ec1ead511b26e5817b842a77debcc57526c4fb86afeb5d91ce89671
+          elif [[ "$SEGMENT_SOURCE_ID" == 15080475107 ]]; then
+            test "$SEGMENT_SOURCE_RUN" = 45738081755
+            test "$SEGMENT_SOURCE_HEAD" = 496654cdcb924729bd1d45b018e3ea90a17d325e
+            test "$SEGMENT_SOURCE_SHA" = 617a815c2dc26b0449ef4d5a83e0d4152b61382b992dc5286483585b9cbcf688
+            jq -e '.name=="migrate02-approved-baseline-2971"' "$SEGMENT_EVIDENCE/source-artifact.json" >/dev/null
           else
             jq -e '.name=="migrate02-segmented-recovery" and (.workflow_run.head_branch|startswith("diagnostics/migrate02-3a7-4-"))' "$SEGMENT_EVIDENCE/source-artifact.json" >/dev/null
           fi
@@ -139,9 +144,16 @@ jobs:
           test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
           test "$(git -C ../guard-src rev-parse HEAD)" = "$GITHUB_SHA"
           node --test scripts/full-sitemap-checkpoint.test.mjs
+          if [[ "$SEGMENT_SOURCE_ID" == 15080475107 ]]; then
+            export SEGMENT_TEST_APPROVED_BASELINE_DIR="$SEGMENT_SOURCE_DIR"
+          fi
           SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segment*.test.mjs
           SEGMENT_QUARANTINE_DIR="$QUARANTINE_DIR" node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
           jq -r '"limit=\(.limit)"' "$SEGMENT_EVIDENCE/segment-plan.json" >> "$GITHUB_OUTPUT"
+      - name: Verify the corrected published headline before reservation
+        if: inputs.source_artifact_id == '15080475107'
+        working-directory: recovery-src
+        run: node --env-file=.env ../guard-src/scripts/segment-headline-baseline.mjs
       - name: Validate source register and reserve checkpoint
         if: success()
         env:
@@ -154,7 +166,7 @@ jobs:
           PLAN_LIMIT: ${{ steps.plan.outputs.limit }}
         run: |
           set -euo pipefail
-          if [[ "$SEGMENT_SOURCE_ID" != 15049826258 ]]; then
+          if [[ "$SEGMENT_SOURCE_ID" != 15049826258 && "$SEGMENT_SOURCE_ID" != 15080475107 ]]; then
             node guard-src/scripts/segment-register.mjs verify-source
           fi
           if [[ "$PLAN_LIMIT" != 0 ]]; then
