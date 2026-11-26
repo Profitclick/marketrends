@@ -8,14 +8,24 @@ import {pathToFileURL} from 'node:url';
 import {checkpointKey} from './segment-register.mjs';
 import {INVENTORY, REV, SNAP, verifyHttpTimings, verifyProgress} from './segmented-recovery-guard.mjs';
 
-const source = {id: 15077387574, run: 45732598155, head: 'fe659474341994c582c0f2a8d2d10bf04de3a393',
+const recent = process.argv[5] === '--vekttap';
+const source = recent ? {id:15086417171,run:45752542669,head:'bfa6bd8400500a70cb13f2f464bf8dfc47193922',
+  sha256:'39c14deb104911c8b67e98b5bb49b1e62fb7b84a6001a56cf2e9b7038a34fb8d'} : {id: 15077387574, run: 45732598155, head: 'fe659474341994c582c0f2a8d2d10bf04de3a393',
   sha256: 'f81ab484eb3e7b6dd13e3b81790e259cb4174d9d4f390430e1ec81a68294ab8a'};
-const quarantine = {id: 15078471519, run: 45733508942, head: '314467c13149946c3b1637717aa609c9927f013f',
+const quarantine = recent ? {id:15086509707,run:45753332362,head:'f853e6e91c538a14c76991110e6c3a09d7972b06',
+  sha256:'136d0e76d49ae9f6285961931ab1b9f8c25cbfbb9a60968815bccdf2c90c4619',
+  key:'156e0405b7b92e16e1c028b1962bd1e708aade889c7f1190f89873730efed024',
+  commit:'725bc76e96b8bf5773c2e81de1d9c6277d0de758'} : {id: 15078471519, run: 45733508942, head: '314467c13149946c3b1637717aa609c9927f013f',
   sha256: '5e6cf4312d4dffbd6c227357e74912f2cc46ce16f76d75c921e641cfe0979ec0',
   key: '378f3cd4d4203dacf5e900cc3d9d0fb1a3feef7b79e69f2b9e87a901c5d1d1d6',
   commit: 'cfb4cc9cba955df691c69bd2bc0fd25cda3f8c6e'};
-const pending = 'https://marketrends.no/arm-sterk-ettersporsel-baksettes-av-produksjonskapasitet';
-const rawTitle = 'ARM: Sterk  etterspørsel baksettes av produksjonskapasitet';
+const pending = recent ? 'https://marketrends.no/vekttap-preger-harbehandlingsmarkedet' : 'https://marketrends.no/arm-sterk-ettersporsel-baksettes-av-produksjonskapasitet';
+const rawTitle = recent ? ' Vekttap preger hårbehandlingsmarkedet ' : 'ARM: Sterk  etterspørsel baksettes av produksjonskapasitet';
+const prior = recent ? 3471 : 2722;
+const priorHistory = recent ? 3475 : 2725;
+const passed = prior + 249;
+const historyLength = priorHistory + 250;
+const untested = INVENTORY - prior - 250;
 const issue = 'ARTICLE_HEADLINE_MISMATCH';
 const recoveryFiles=['snapshot.json','checkpoint.json','attempt-history.jsonl','results.jsonl','summary.json'];
 const sha256 = content => createHash('sha256').update(content).digest('hex');
@@ -64,11 +74,12 @@ assert.deepEqual({status:gate.status, code:gate.code, phase:gate.phase, started:
 {status:'QUARANTINE',code:'SEGMENT_NOT_PASS',phase:'passive',started:250,revision:REV,resumeAllowed:false});
 const sourceGate = json(base,'segment-gate.json');
 assert.equal(sourceGate.status,'PASS');
-assert.equal(sourceGate.passed,2722);
-assert.equal(sourceGate.historyLength,2725);
+assert.equal(sourceGate.passed,prior);
+assert.equal(sourceGate.historyLength,priorHistory);
 const reservation=json(stopped,'segment-reservation.json');
 assert.deepEqual(reservation,{version:1,status:'RESERVED',key:quarantine.key,runId:String(quarantine.run),
-  sourceId:String(source.id),sourceSha:source.sha256,limit:250});
+  sourceId:String(source.id),sourceSha:source.sha256,limit:250,
+  ...(recent?{baselineArtifactId:'15080475107'}:{})});
 const original=json(base,'recovery/checkpoint.json');
 const state=json(stopped,'recovery/checkpoint.json');
 const snapshot=stopped('recovery/snapshot.json',null);
@@ -106,23 +117,23 @@ try {
   assert.deepEqual(before.latest(),rows(base('recovery/results.jsonl')));
   assert.equal(after.pending[0].url,pending);
   assert.equal(after.snapshot.entries.length,INVENTORY);
-  assert.equal(after.latest().length,2972);
-  assert.equal(after.latest().filter(row=>!row.issues.length).length,2971);
-  assert.equal(after.pending.length,2305);
-  assert.equal(rows(state.journal).length,2975);
+  assert.equal(after.latest().length,passed+1);
+  assert.equal(after.latest().filter(row=>!row.issues.length).length,passed);
+  assert.equal(after.pending.length,untested+1);
+  assert.equal(rows(state.journal).length,historyLength);
   const failingRow=after.latest().find(row=>row.url===pending);
   const summary=json(stopped,'recovery/summary.json');
-  assert.equal(summary.attempted,2972);
-  assert.equal(summary.passed,2971);
+  assert.equal(summary.attempted,passed+1);
+  assert.equal(summary.passed,passed);
   assert.equal(summary.failed,1);
-  assert.equal(summary.untested,2304);
+  assert.equal(summary.untested,untested);
   assert.equal(summary.complete,false);
   const headline=verifyHeadline(evaluate,after.pending[0],failingRow);
   const approval={
-    status:'APPROVED_BASELINE',liveAuthorized:false,releaseComplete:false,recoveryRevision:REV,snapshotSha256:SNAP,
+    status:recent?'REVIEW_REQUIRED':'APPROVED_BASELINE',liveAuthorized:false,releaseComplete:false,recoveryRevision:REV,snapshotSha256:SNAP,
     checkpointKey:checkpointKey({recoveryRevision:REV,snapshotSha256:SNAP,sourceJournalSha256:state.journalSha256}),
     sourceJournalSha256:state.journalSha256,source,quarantine,auditedSegment:{attempted:250,passed:249,failed:1},
-    inventory:{total:INVENTORY,attempted:2972,passed:2971,failed:1,untested:2304,remaining:2305,historyLength:2975},
+    inventory:{total:INVENTORY,attempted:passed+1,passed,failed:1,untested,remaining:untested+1,historyLength},
     firstPendingUrl:pending,headline,
   };
   fs.mkdirSync(output);

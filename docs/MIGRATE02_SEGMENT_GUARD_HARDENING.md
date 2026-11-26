@@ -85,3 +85,11 @@ Offline-kjøring `45738081755` på `496654cdcb924729bd1d45b018e3ea90a17d325e` be
 Workflowen aksepterer kun den verifiserte ZIP-en `15080475107` som startpunktet med én åpen feil. Den beholder alle 2 975 journalrader, starter køen med ARM-artikkelen og utelater de 2 971 eksisterende PASS-resultatene fra køen. Et bestått forsøk på ARM-artikkelen øker antall PASS til 2 972 uten å øke antall unike forsøkte URL-er. Etterfølgende checkpoints må beholde den godkjente journalprefiksen og de fire historiske ekstra forsøkene.
 
 Ved en senere autorisert live-kjøring kontrollerer workflowen den normaliserte publiserte tittelen med et skrivebeskyttet oppslag før reservasjon. Hvis tittelen fortsatt avviker, forblir checkpointet ureservert. Dersom det første SSR-resultatet likevel har avvik, stanser guarden før neste probe. I denne klargjøringen ble begge utfall kontrollert med offline-fixtures. Den eksakte recovery-committen ble brukt til å simulere én bestått ARM-rekontroll og verifisere det påfølgende checkpointet. Produksjonstittelen og terminal karantene ble bevart.
+
+## Rekontroll etter ARM-rettingen
+
+Tittelkontrollen og ARM-artikkelens nye SSR-forsøk besto. Run `45751789723` og `45752542669` la til 500 beståtte resultater. Sistnevnte ga 3 471 beståtte URL-er og 3 475 journalrader. ZIP SHA-256 var `39c14deb104911c8b67e98b5bb49b1e62fb7b84a6001a56cf2e9b7038a34fb8d`. [Siste beståtte checkpoint](https://github.com/Profitclick/marketrends/actions/runs/45752542669/artifacts/15086417171)
+
+Run `45753332362` endte med `SEGMENT_NOT_PASS` etter 250 avstemte prober. 249 besto. `/vekttap-preger-harbehandlingsmarkedet` ga HTTP 200 med `ARTICLE_HEADLINE_MISMATCH`. Et skrivebeskyttet oppslag fant ett ledende og ett avsluttende mellomrom i den lagrede tittelen. Et søk på alle 1 556 gjenværende publiserte titler fant bare dette mellomromsavviket. ZIP SHA-256 var `136d0e76d49ae9f6285961931ab1b9f8c25cbfbb9a60968815bccdf2c90c4619`. [Karanteneartifact](https://github.com/Profitclick/marketrends/actions/runs/45753332362/artifacts/15086509707)
+
+Kildecheckpointet er sperret av terminal registercommit `725bc76e96b8bf5773c2e81de1d9c6277d0de758`. Den offline verifiserte kandidaten beholder alle 3 725 journalrader og viser 3 720 bestått, én feil og 1 555 uprøvde URL-er. Kandidaten krever godkjenning før bruk. Ingen nye segmenter ble startet etter karantenen.
