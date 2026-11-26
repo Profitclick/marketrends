@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import test from 'node:test';
-import {headlinePreflight, HEADLINE_BASELINE, HEADLINE_URL} from './segment-headline-baseline.mjs';
+import {getHeadlineBaseline, headlinePreflight, headlineUrl, HEADLINE_BASELINE, HEADLINE_URL} from './segment-headline-baseline.mjs';
 import {verifyBaselineFirstResult, verifySegmentSummary, REV, SNAP} from './segmented-recovery-guard.mjs';
 
 test('the first reservation requires the exact normalized headline for the published article', () => {
@@ -37,27 +37,30 @@ test('exact offline evaluator preserves the failed row and promotes only its suc
   const prepare=env=>spawnSync(process.execPath,[guard,'prepare'],{encoding:'utf8',env:{
     ...process.env,SEGMENT_QUARANTINE_DIR:'',SEGMENT_LIMIT:'1',...env
   }});
+  const pinned=getHeadlineBaseline(process.env.SEGMENT_TEST_BASELINE_ID??HEADLINE_BASELINE.id);
+  const url=headlineUrl(pinned);
+  const untested=5275-pinned.prior;
   const first=path.join(temp,'first');
   const initialEnv={SEGMENT_SOURCE_DIR:artifact,SEGMENT_EVIDENCE:first,
-    SEGMENT_SOURCE_ID:HEADLINE_BASELINE.id,SEGMENT_SOURCE_SHA:HEADLINE_BASELINE.sha256,
-    SEGMENT_PRIOR_PASSED:'2971',SEGMENT_PRIOR_HISTORY:'2975'};
+    SEGMENT_SOURCE_ID:pinned.id,SEGMENT_SOURCE_SHA:pinned.sha256,
+    SEGMENT_PRIOR_PASSED:String(pinned.prior),SEGMENT_PRIOR_HISTORY:String(pinned.history)};
   const bad=prepare({...initialEnv,SEGMENT_SOURCE_SHA:'f'.repeat(64)});
   assert.equal(bad.status,70);
   assert.equal(fs.existsSync(first),false);
   const initial=prepare(initialEnv);
   assert.equal(initial.status,0,initial.stderr);
   const plan=read(path.join(first,'segment-plan.json'));
-  assert.equal(plan.baselineArtifactId,HEADLINE_BASELINE.id);
-  assert.deepEqual(read(path.join(first,'targets.json')).map(entry=>entry.url),[HEADLINE_URL]);
+  assert.equal(plan.baselineArtifactId,pinned.id);
+  assert.deepEqual(read(path.join(first,'targets.json')).map(entry=>entry.url),[url]);
   const dir=path.join(first,'recovery');
   const before=read(path.join(dir,'checkpoint.json'));
-  assert.equal(before.journalSha256,HEADLINE_BASELINE.journalSha256);
+  assert.equal(before.journalSha256,pinned.journalSha256);
   const {runAudit}=await import(pathToFileURL(path.resolve('scripts/full-sitemap-ssr-audit.mjs')));
-  const title=HEADLINE_BASELINE.title;
-  const schema=JSON.stringify({'@type':'NewsArticle',headline:title,mainEntityOfPage:{'@id':HEADLINE_URL},
+  const title=pinned.title;
+  const schema=JSON.stringify({'@type':'NewsArticle',headline:title,mainEntityOfPage:{'@id':url},
     author:{'@type':'Organization',name:'Marketrends.no'},isBasedOn:'https://example.invalid/'});
-  const html=`<html><head><title>${title}</title><link rel="canonical" href="${HEADLINE_URL}">
-    <meta property="og:url" content="${HEADLINE_URL}"><meta name="description" content="Offline fixture">
+  const html=`<html><head><title>${title}</title><link rel="canonical" href="${url}">
+    <meta property="og:url" content="${url}"><meta name="description" content="Offline fixture">
     <meta name="robots" content="index"><meta name="googlebot" content="index">
     <script type="application/ld+json">${schema}</script></head><body><main><article>
     <h1>${title}</h1><a href="https://example.invalid/">Offline fixture</a></article></main></body></html>`;
@@ -67,26 +70,26 @@ test('exact offline evaluator preserves the failed row and promotes only its suc
       requests.push(input);
       return new Response(html,{headers:{'content-type':'text/html'}});
     },now:()=>0,sleep:async()=>{}});
-  assert.deepEqual(requests,['http://127.0.0.1:3000/'+HEADLINE_BASELINE.slug]);
+  assert.deepEqual(requests,['http://127.0.0.1:3000/'+pinned.slug]);
   verifySegmentSummary(summary,plan,1);
-  assert.equal(summary.passed,2972);
+  assert.equal(summary.passed,pinned.prior+1);
   assert.equal(summary.failed,0);
-  assert.equal(summary.untested,2304);
+  assert.equal(summary.untested,untested);
   const after=read(path.join(dir,'checkpoint.json'));
   assert.ok(after.journal.startsWith(before.journal));
-  assert.equal(after.journal.trimEnd().split('\n').length,2976);
-  assert.equal(JSON.parse(after.journal.trimEnd().split('\n').at(-1)).url,HEADLINE_URL);
+  assert.equal(after.journal.trimEnd().split('\n').length,pinned.history+1);
+  assert.equal(JSON.parse(after.journal.trimEnd().split('\n').at(-1)).url,url);
 
   // The next checkpoint must retain the historic extra attempt and the same baseline.
-  const gate={status:'PASS',recoveryRevision:REV,snapshotSha256:SNAP,passed:2972,
-    historyLength:2976,releaseComplete:false,baselineArtifactId:HEADLINE_BASELINE.id};
+  const gate={status:'PASS',recoveryRevision:REV,snapshotSha256:SNAP,passed:pinned.prior+1,
+    historyLength:pinned.history+1,releaseComplete:false,baselineArtifactId:pinned.id};
   const gateFile=path.join(first,'segment-gate.json');
   fs.writeFileSync(gateFile,JSON.stringify(gate));
   const next=path.join(temp,'next');
   const nextEnv={SEGMENT_SOURCE_DIR:first,SEGMENT_EVIDENCE:next,SEGMENT_SOURCE_ID:'991',
-    SEGMENT_SOURCE_SHA:'a'.repeat(64),SEGMENT_PRIOR_PASSED:'2972',SEGMENT_PRIOR_HISTORY:'2976'};
+    SEGMENT_SOURCE_SHA:'a'.repeat(64),SEGMENT_PRIOR_PASSED:String(pinned.prior+1),SEGMENT_PRIOR_HISTORY:String(pinned.history+1)};
   assert.equal(prepare(nextEnv).status,0);
-  assert.equal(read(path.join(next,'segment-plan.json')).baselineArtifactId,HEADLINE_BASELINE.id);
+  assert.equal(read(path.join(next,'segment-plan.json')).baselineArtifactId,pinned.id);
   fs.writeFileSync(gateFile,JSON.stringify({...gate,baselineArtifactId:undefined}));
   assert.match(prepare({...nextEnv,SEGMENT_EVIDENCE:path.join(temp,'invalid')}).stderr,/SOURCE_COUNTS/);
 });

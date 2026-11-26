@@ -8,7 +8,7 @@ import {performance} from 'node:perf_hooks';
 import {setTimeout as delay} from 'node:timers/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {checkpointKey,QUARANTINE_RECOVERY,verifyReservation} from './segment-register.mjs';
-import {checkApprovedBaseline,hasApprovedJournalPrefix,HEADLINE_BASELINE,HEADLINE_URL} from './segment-headline-baseline.mjs';
+import {checkApprovedBaseline,getHeadlineBaseline,hasApprovedJournalPrefix,headlineUrl} from './segment-headline-baseline.mjs';
 import {measureHttp} from './segment-http.mjs';
 import {checkPulse,MAX_GAP_MS,monotonicMs,SAMPLE_INTERVAL_MS,supervise,watchChild} from './segment-watchdog.mjs';
 
@@ -235,19 +235,20 @@ async function prepare(){
   requireThat(integer(prior)&&prior>=1321&&prior<=INVENTORY&&integer(historyCount),'SOURCE_COUNTS');
   requireThat(/^\d+$/.test(sourceId)&&/^[a-f0-9]{64}$/.test(sourceSha),'SOURCE_IDENTITY');
   requireThat(!fs.existsSync(path.join(source,'guard-stop.json')),'SOURCE_QUARANTINED');
-  const approvedSource=sourceId===HEADLINE_BASELINE.id;
+  const approvedSource=getHeadlineBaseline(sourceId);
   let baselineArtifactId;
   if(sourceId===INITIAL_ID){
     requireThat(sourceSha===INITIAL_SHA&&prior===1321&&historyCount===1324,'INITIAL_SOURCE_PIN');
   }else if(approvedSource){
-    baselineArtifactId=HEADLINE_BASELINE.id;
+    baselineArtifactId=approvedSource.id;
   }else{
     const gate=json(path.join(source,'segment-gate.json'));
     requireThat(gate.status==='PASS'&&gate.recoveryRevision===REV&&gate.snapshotSha256===SNAP&&gate.passed===prior&&gate.historyLength===historyCount&&gate.releaseComplete===(prior===INVENTORY),'SOURCE_GATE_NOT_PASS');
     baselineArtifactId=gate.baselineArtifactId;
   }
-  requireThat(baselineArtifactId===undefined||baselineArtifactId===HEADLINE_BASELINE.id,'SOURCE_BASELINE_LINEAGE');
-  requireThat(historyCount===prior+(baselineArtifactId===undefined?3:4),'SOURCE_COUNTS');
+  const lineage=getHeadlineBaseline(baselineArtifactId);
+  requireThat(baselineArtifactId===undefined||lineage,'SOURCE_BASELINE_LINEAGE');
+  requireThat(historyCount===prior+(lineage?lineage.history-lineage.prior:3),'SOURCE_COUNTS');
   const dir=path.join(source,'recovery'),state=json(path.join(dir,'checkpoint.json'));
   const raw=fs.readFileSync(path.join(dir,'snapshot.json'));
   requireThat(hash(raw)===SNAP&&state.snapshotSha256===SNAP&&hash(state.journal)===state.journalSha256&&state.revision===REV,'SOURCE_CHECKPOINT_INTEGRITY');
@@ -261,8 +262,8 @@ async function prepare(){
   requireThat(c.snapshot.entries.length===INVENTORY&&latest.length===prior+unresolved&&failures.length===unresolved,'SOURCE_RESULTS');
   if(approvedSource){
     const [repair]=failures;
-    requireThat(repair.url===HEADLINE_URL&&repair.status===200&&equal(repair.issues,['ARTICLE_HEADLINE_MISMATCH'])&&
-      c.pending[0]?.url===HEADLINE_URL,'SOURCE_HEADLINE_RESULT');
+    requireThat(repair.url===headlineUrl(approvedSource)&&repair.status===200&&equal(repair.issues,['ARTICLE_HEADLINE_MISMATCH'])&&
+      c.pending[0]?.url===headlineUrl(approvedSource),'SOURCE_HEADLINE_RESULT');
   }
   requireThat(equal(lines(fs.readFileSync(path.join(dir,'results.jsonl'),'utf8')),c.latest()),'SOURCE_EXPORT_DIVERGENCE');
   const oldSummary=json(path.join(dir,'summary.json'));
@@ -271,7 +272,7 @@ async function prepare(){
   requireThat(c.pending.length===limit&&c.pending.every(r=>r.kind==='article'&&!passed.has(r.url)),'SOURCE_TARGETS');
   const plan={sourceId,sourceSha,prior,historyCount,limit,snapshotSha256:SNAP,recoveryRevision:REV,sourceJournalSha256:state.journalSha256};
   if(baselineArtifactId!==undefined){
-    requireThat(hasApprovedJournalPrefix(state.journal)&&(!approvedSource?prior>HEADLINE_BASELINE.prior:true),'SOURCE_BASELINE_JOURNAL');
+    requireThat(hasApprovedJournalPrefix(state.journal,lineage)&&(approvedSource||prior>lineage.prior),'SOURCE_BASELINE_JOURNAL');
     plan.baselineArtifactId=baselineArtifactId;
   }
   if(approvedSource){
@@ -343,13 +344,14 @@ async function live(){
   });
 }
 export function verifyBaselineFirstResult(plan,rows){
-  if(plan.sourceId===HEADLINE_BASELINE.id&&rows.length>0){
-    requireThat(rows[0].url===HEADLINE_URL&&rows[0].status===200&&!rows[0].issues.length,'BASELINE_HEADLINE_STILL_FAILING');
+  const approvedSource=getHeadlineBaseline(plan.sourceId);
+  if(approvedSource&&rows.length>0){
+    requireThat(rows[0].url===headlineUrl(approvedSource)&&rows[0].status===200&&!rows[0].issues.length,'BASELINE_HEADLINE_STILL_FAILING');
   }
 }
 
 export function verifySegmentSummary(summary,plan,attempted){
-  const priorAttempted=plan.prior+(plan.sourceId===HEADLINE_BASELINE.id?1:0);
+  const priorAttempted=plan.prior+(getHeadlineBaseline(plan.sourceId)?1:0);
   requireThat(summary.batchAttempted===attempted&&summary.priorAttempted===priorAttempted&&
     summary.attempted===plan.prior+attempted&&summary.snapshotUrls===INVENTORY,'FINAL_SUMMARY_DIVERGENCE');
 }

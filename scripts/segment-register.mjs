@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 
-import {checkApprovedBaseline,headlinePreflight,HEADLINE_BASELINE} from './segment-headline-baseline.mjs';
+import {checkApprovedBaseline,headlinePreflight,getHeadlineBaseline} from './segment-headline-baseline.mjs';
 
 const hex = (s, size) => typeof s === 'string' && s.length === size && /^[a-f0-9]+$/.test(s);
 const id = s => typeof s === 'string' && /^[1-9][0-9]*$/.test(s);
@@ -142,12 +142,12 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
           {encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000}).trim();
         check(current === plan.quarantineCommit + '\t' + ref, 'REGISTER_QUARANTINE_MOVED');
       }
-      if (plan.sourceId === HEADLINE_BASELINE.id) {
-        const pinned = HEADLINE_BASELINE;
+      const pinned = getHeadlineBaseline(plan.sourceId);
+      if (pinned) {
         check(process.env.SEGMENT_SOURCE_RUN===pinned.run,'REGISTER_HEADLINE_SOURCE_RUN');
         const manifest=read(path.join(process.env.SEGMENT_SOURCE_DIR,'baseline-approval.json'));
         checkApprovedBaseline(plan,manifest,reservation.key);
-        const expected = headlinePreflight([{slug:pinned.slug,title:pinned.title}]);
+        const expected = headlinePreflight([{slug:pinned.slug,title:pinned.title}],pinned);
         check(same(read(path.join(out,'headline-preflight.json')),expected),'REGISTER_HEADLINE_PREFLIGHT');
         const ref = registerPrefix + pinned.quarantineKey;
         const current = execFileSync('git', ['ls-remote', '--exit-code', remote, ref],
