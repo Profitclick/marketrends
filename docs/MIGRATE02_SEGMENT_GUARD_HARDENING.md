@@ -47,3 +47,11 @@ Det separat godkjente segmentet kjørte på `1a24a6959c698cf9d590dddd052c8d4636e
 - HTTP-TTFB var 2 791,4 ms. Guard-overhead var 12,4 ms og evaluatorens totale tid 2 814 ms. Passiv observasjon var 120,008 sekunder med 122 prøver og et lengste måleintervall på 1 005 ms.
 - ZIP-integritet og SHA-256 `0433ad4dfe9e1e8294824d1ac3fa9e0a502c0d755784cc48828252864f0c9752` ble verifisert etter nedlasting. Registercommit `80c7aa26ee1fe886b26fd508a7017501e4ff3fa8` har terminal `PASS` og binder denne digesten til artifactet. [Artifact 15065670674](https://github.com/Profitclick/marketrends/actions/runs/45704914324/artifacts/15065670674)
 - Kildecheckpoint `15049826258` er konsumert. En eventuell videre separat godkjent recovery må bruke `15065670674`. Dette enkeltsegmentet godkjenner bare én URL. Ingen oppskalering ble startet.
+
+## Videre segmenter og terminal stopp
+
+Åtte påfølgende segmenter med batchgrense 50 besto. Hvert segment hentet kildeartifactet fra forrige vellykkede kjøring og kontrollerte SHA-256 før reservasjon. Siste beståtte kjøring, `45726921919`, ga 1 722 beståtte URL-er av 5 276 og 1 725 journalrader. ZIP-arkivet ble separat verifisert med SHA-256 `f6bc8bbe523941a018cbb0e955106a2c3a3ee49ba406342684521fcb966fe27e`. [Siste beståtte artifact 15075535537](https://github.com/Profitclick/marketrends/actions/runs/45726921919/artifacts/15075535537)
+
+Kjøring `45727419195` på `3a403fbe86fbebad3129657b920a26c5e0b1b3cc` reserverte dette checkpointet og stanset før første probe med `WORKER_IDENTITY_CHANGED`. Karanteneevidensen viser null probestarter, null HTTP-timinger og null nye journalrader. Den første ressursprøven er bevart. Den avviste prøven ble ikke lagret, så evidensen fastslår ikke hvorfor worker-identiteten endret seg. SHA-256 for karantene-ZIP var `9fbacb4465d44811e04c8aa1ea15bba4c0b737681bccfd6acbf827010e1de6f3`. [Karanteneartifact 15074449808](https://github.com/Profitclick/marketrends/actions/runs/45727419195/artifacts/15074449808)
+
+Registercommit `1a17246abc3391fa6a416ceb91e0b6e4d1f63da0` bekrefter terminal `QUARANTINE` for kildeartifact `15075535537`. Kontrollprosessen avsluttet kjeden med 3 554 URL-er igjen. Ingen retry eller senere segment ble startet. `main` og `feat/tanstack-migration` ble verifisert uendret.
