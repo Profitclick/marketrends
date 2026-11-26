@@ -106,6 +106,7 @@ jobs:
           unzip -tq "$RUNNER_TEMP/segment-source.zip"
           unzip -q "$RUNNER_TEMP/segment-source.zip" -d "$SEGMENT_SOURCE_DIR"
       - name: Verify the pinned zero-probe quarantine artifact
+        id: quarantine
         if: inputs.approved_zero_probe_continuation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,17 +128,19 @@ jobs:
           echo "$sha  $evidence.zip" | sha256sum -c -
           unzip -tq "$evidence.zip"
           unzip -q "$evidence.zip" -d "$evidence"
-          echo "SEGMENT_QUARANTINE_DIR=$evidence" >> "$GITHUB_ENV"
+          echo "dir=$evidence" >> "$GITHUB_OUTPUT"
       - name: Offline checkpoint tests and preparation
         id: plan
         working-directory: recovery-src
+        env:
+          QUARANTINE_DIR: ${{ steps.quarantine.outputs.dir }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
           test "$(git -C ../guard-src rev-parse HEAD)" = "$GITHUB_SHA"
           node --test scripts/full-sitemap-checkpoint.test.mjs
           SEGMENT_TEST_SOURCE_DIR="$SEGMENT_SOURCE_DIR" node --test ../guard-src/scripts/segment*.test.mjs
-          node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
+          SEGMENT_QUARANTINE_DIR="$QUARANTINE_DIR" node ../guard-src/scripts/segmented-recovery-guard.mjs prepare
           jq -r '"limit=\(.limit)"' "$SEGMENT_EVIDENCE/segment-plan.json" >> "$GITHUB_OUTPUT"
       - name: Validate source register and reserve checkpoint
         if: success()

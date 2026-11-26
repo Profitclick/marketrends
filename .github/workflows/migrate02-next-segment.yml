@@ -11,7 +11,7 @@ jobs:
     if: >-
       github.repository == 'Profitclick/marketrends' &&
       github.ref == 'refs/heads/diagnostics/migrate02-3a7-4-1' &&
-      github.event.before == '50972b83351805fbfd277cd8da8837ccf1b512bb' &&
+      github.event.before == '60de9aa32f083098bc05ff426b71d62fc8877c4a' &&
       github.run_attempt == '1'
     uses: ./.github/workflows/migrate02-segmented-recovery.yml
     with:
