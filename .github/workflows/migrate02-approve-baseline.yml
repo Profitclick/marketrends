@@ -1,0 +1,63 @@
+name: MIGRATE-02 offline approval of the 2,971-URL baseline
+on:
+  push:
+    branches: [diagnostics/migrate02-3a7-4-1]
+    paths: [.github/workflows/migrate02-approve-baseline.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  baseline:
+    if: >-
+      github.repository == 'Profitclick/marketrends' &&
+      github.event.before == 'e5f68c37fd8285fd52d0eee354868f322f51e681' &&
+      github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: guard-src
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 091837a1a5b1ed2be2c41fcba2d6032f2dfc3395
+          path: recovery-src
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify pinned Actions evidence and terminal quarantine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          get() {
+            local id="$1" run="$2" head="$3" digest="$4" conclusion="$5" destination="$6"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" |
+              jq -e --arg id "$id" --arg run "$run" --arg head "$head" --arg digest "$digest"                 '(.id|tostring)==$id and .expired==false and .digest==("sha256:"+$digest) and (.workflow_run.id|tostring)==$run and .workflow_run.head_sha==$head' >/dev/null
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" |
+              jq -e --arg head "$head" --arg conclusion "$conclusion"                 '.status=="completed" and .conclusion==$conclusion and .run_attempt==1 and .head_sha==$head' >/dev/null
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$destination"
+          }
+          get 15077387574 45732598155 fe659474341994c582c0f2a8d2d10bf04de3a393 f81ab484eb3e7b6dd13e3b81790e259cb4174d9d4f390430e1ec81a68294ab8a success "$RUNNER_TEMP/source.zip"
+          get 15078471519 45733508942 314467c13149946c3b1637717aa609c9927f013f 5e6cf4312d4dffbd6c227357e74912f2cc46ce16f76d75c921e641cfe0979ec0 failure "$RUNNER_TEMP/quarantine.zip"
+          ref=refs/heads/diagnostics/migrate02-register/378f3cd4d4203dacf5e900cc3d9d0fb1a3feef7b79e69f2b9e87a901c5d1d1d6
+          terminal=cfb4cc9cba955df691c69bd2bc0fd25cda3f8c6e
+          test "$(git ls-remote --exit-code "https://github.com/$GITHUB_REPOSITORY.git" "$ref" | cut -f1)" = "$terminal"
+          gh api "repos/$GITHUB_REPOSITORY/git/commits/$terminal" |
+            jq -e --arg key "${ref##*/}" '(.message|split("\n")[0]|fromjson) | .status=="QUARANTINE" and .key==$key and .runId=="45733508942" and .sourceId=="15077387574" and .limit==250' >/dev/null
+      - name: Build the approved baseline offline
+        working-directory: recovery-src
+        run: |
+          set -euo pipefail
+          node ../guard-src/scripts/approve-segment-baseline.mjs "$RUNNER_TEMP/source.zip" "$RUNNER_TEMP/quarantine.zip" "$RUNNER_TEMP/approved-baseline"
+          test -z "$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/diagnostics/migrate02-register/97c3975250f5ae98a9be85c1ab1ea52465aac4815deda671320e1fa1915632e8)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: migrate02-approved-baseline-2971
+          path: ${{ runner.temp }}/approved-baseline/
+          if-no-files-found: error
+          retention-days: 30
