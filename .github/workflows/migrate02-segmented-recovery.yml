@@ -27,6 +27,10 @@ on:
       batch_limit:
         required: true
         type: number
+      approved_zero_probe_continuation:
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: write
   actions: read
@@ -101,6 +105,29 @@ jobs:
           echo "$SEGMENT_SOURCE_SHA  $RUNNER_TEMP/segment-source.zip" | sha256sum -c -
           unzip -tq "$RUNNER_TEMP/segment-source.zip"
           unzip -q "$RUNNER_TEMP/segment-source.zip" -d "$SEGMENT_SOURCE_DIR"
+      - name: Verify the pinned zero-probe quarantine artifact
+        if: inputs.approved_zero_probe_continuation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$SEGMENT_SOURCE_ID" = 15075535537
+          test "$SEGMENT_SOURCE_RUN" = 45726921919
+          id=15074449808
+          run=45727419195
+          sha=9fbacb4465d44811e04c8aa1ea15bba4c0b737681bccfd6acbf827010e1de6f3
+          head=3a403fbe86fbebad3129657b920a26c5e0b1b3cc
+          evidence="$RUNNER_TEMP/approved-zero-probe-quarantine"
+          mkdir -p "$evidence"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" > "$SEGMENT_EVIDENCE/quarantine-artifact.json"
+          jq -e --arg id "$id" --arg sha "$sha" --arg run "$run" --arg head "$head" '(.id|tostring)==$id and .expired==false and .digest==("sha256:"+$sha) and (.workflow_run.id|tostring)==$run and .workflow_run.head_sha==$head' "$SEGMENT_EVIDENCE/quarantine-artifact.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > "$SEGMENT_EVIDENCE/quarantine-run.json"
+          jq -e --arg head "$head" '.status=="completed" and .conclusion=="failure" and .run_attempt==1 and .head_sha==$head' "$SEGMENT_EVIDENCE/quarantine-run.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$evidence.zip"
+          echo "$sha  $evidence.zip" | sha256sum -c -
+          unzip -tq "$evidence.zip"
+          unzip -q "$evidence.zip" -d "$evidence"
+          echo "SEGMENT_QUARANTINE_DIR=$evidence" >> "$GITHUB_ENV"
       - name: Offline checkpoint tests and preparation
         id: plan
         working-directory: recovery-src

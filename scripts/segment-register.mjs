@@ -13,17 +13,38 @@ function check(ok, code) {
   if (!ok) throw new Error(code);
 }
 
-export function checkpointKey({recoveryRevision, snapshotSha256, sourceJournalSha256}) {
+// Operator-approved only for the verified zero-probe stop on Actions run 45727419195.
+export const QUARANTINE_RECOVERY = Object.freeze({
+  sourceId: '15075535537',
+  sourceSha: 'f6bc8bbe523941a018cbb0e955106a2c3a3ee49ba406342684521fcb966fe27e',
+  artifactId: '15074449808',
+  artifactSha: '9fbacb4465d44811e04c8aa1ea15bba4c0b737681bccfd6acbf827010e1de6f3',
+  run: '45727419195',
+  key: 'e623222cee3d37ca1b6b7d966552717369567c1192f48db6dbfa8e9c10fa3965',
+  terminalCommit: '1a17246abc3391fa6a416ceb91e0b6e4d1f63da0',
+});
+const registerPrefix = 'refs/heads/diagnostics/migrate02-register/';
+const sha256 = value => createHash('sha256').update(value).digest('hex');
+
+export function checkpointKey(plan) {
+  const {recoveryRevision, snapshotSha256, sourceJournalSha256, quarantineCommit} = plan;
   check(hex(recoveryRevision, 40) && hex(snapshotSha256, 64) && hex(sourceJournalSha256, 64),
     'REGISTER_CHECKPOINT_IDENTITY');
-  return createHash('sha256').update([recoveryRevision, snapshotSha256, sourceJournalSha256].join(':')).digest('hex');
+  const key = sha256([recoveryRevision, snapshotSha256, sourceJournalSha256].join(':'));
+  if (quarantineCommit === undefined) return key;
+  const approval = QUARANTINE_RECOVERY;
+  check(quarantineCommit === approval.terminalCommit && key === approval.key &&
+    plan.sourceId === approval.sourceId && plan.sourceSha === approval.sourceSha &&
+    plan.prior === 1722 && plan.historyCount === 1725 && plan.limit === 250, 'REGISTER_QUARANTINE_PIN');
+  return sha256(key + ':' + quarantineCommit);
 }
 
 export function reservationFor(plan, runId) {
   check(id(runId) && id(plan.sourceId) && hex(plan.sourceSha, 64) &&
     Number.isSafeInteger(plan.limit) && plan.limit > 0 && plan.limit <= 250, 'REGISTER_RESERVATION');
   return {version: 1, status: 'RESERVED', key: checkpointKey(plan), runId,
-    sourceId: plan.sourceId, sourceSha: plan.sourceSha, limit: plan.limit};
+    sourceId: plan.sourceId, sourceSha: plan.sourceSha, limit: plan.limit,
+    ...(plan.quarantineCommit === undefined ? {} : {quarantineCommit: plan.quarantineCommit})};
 }
 
 export function verifyReservation(plan, runId, reservation) {
@@ -44,7 +65,7 @@ export function updateRegister(remote, reservation, status, artifact) {
       GIT_AUTHOR_EMAIL: 'actions@users.noreply.github.com', GIT_COMMITTER_NAME: 'Segment register',
       GIT_COMMITTER_EMAIL: 'actions@users.noreply.github.com'},
   }).trim();
-  const ref = 'refs/heads/diagnostics/migrate02-register/' + reservation.key;
+  const ref = registerPrefix + reservation.key;
   try {
     git(['init', '--bare', '--quiet']);
     let parent = [];
@@ -82,7 +103,7 @@ export function verifyRegisteredSource(remote, plan, gate) {
   }).trim();
   try {
     git(['init', '--bare', '--quiet']);
-    git(['fetch', '--quiet', '--no-tags', remote, 'refs/heads/diagnostics/migrate02-register/' + key]);
+    git(['fetch', '--quiet', '--no-tags', remote, registerPrefix + key]);
     const record = JSON.parse(git(['show', '-s', '--format=%s', 'FETCH_HEAD']));
     check(record.version === 1 && record.status === 'PASS' && record.key === key &&
       record.runId === gate.registerRunId && record.artifact?.id === plan.sourceId &&
@@ -111,6 +132,12 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
       verifyRegisteredSource(remote, plan, gate);
     } else if (command === 'reserve') {
       const reservation = reservationFor(plan, process.env.GITHUB_RUN_ID);
+      if (plan.quarantineCommit !== undefined) {
+        const ref = registerPrefix + QUARANTINE_RECOVERY.key;
+        const current = execFileSync('git', ['ls-remote', '--exit-code', remote, ref],
+          {encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000}).trim();
+        check(current === plan.quarantineCommit + '\t' + ref, 'REGISTER_QUARANTINE_MOVED');
+      }
       updateRegister(remote, reservation, 'RESERVED');
       fs.writeFileSync(file, JSON.stringify(reservation) + '\n', {flag: 'wx'});
     } else if (command === 'finish') {

@@ -7,9 +7,9 @@ import {execFileSync} from 'node:child_process';
 import {performance} from 'node:perf_hooks';
 import {setTimeout as delay} from 'node:timers/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
-import {checkpointKey,verifyReservation} from './segment-register.mjs';
+import {checkpointKey,QUARANTINE_RECOVERY,verifyReservation} from './segment-register.mjs';
 import {measureHttp} from './segment-http.mjs';
-import {checkPulse,MAX_GAP_MS,supervise,watchChild} from './segment-watchdog.mjs';
+import {checkPulse,MAX_GAP_MS,monotonicMs,SAMPLE_INTERVAL_MS,supervise,watchChild} from './segment-watchdog.mjs';
 
 export const REV='091837a1a5b1ed2be2c41fcba2d6032f2dfc3395';
 export const SNAP='3e4cd3b4931f9918bf3136badf60c8a699435d212ca2abc0cf458c8b8f264d73';
@@ -49,6 +49,31 @@ export function verifyResource(base,sample,workerKeys=null){
   const keys=workers.map(p=>p.pid+':'+p.startTicks).sort();
   requireThat(workerKeys===null||equal(keys,workerKeys),'WORKER_IDENTITY_CHANGED');
   return keys;
+}
+export function verifyObservedResource(out,base,sample,previousKeys=null){
+  try{
+    return verifyResource(base,sample,previousKeys);
+  }catch(error){
+    atomic(path.join(out,'rejected-resource-sample.json'),{code:error.code,previousKeys,sample});
+    throw error;
+  }
+}
+
+export async function armStableWorkers({sample,record,now=monotonicMs,sleep=delay}){
+  const started=now();
+  let previous=started,stableSince=started,workerKeys=null;
+  for(;;){
+    const keys=sample();
+    const measured=now();
+    requireThat(measured>=previous&&measured-previous<MAX_GAP_MS,'STARTUP_TELEMETRY_GAP');
+    requireThat(measured-started<=20000,'WORKER_STARTUP_UNSTABLE');
+    if(!equal(keys,workerKeys))stableSince=measured;
+    workerKeys=keys;
+    record({monotonicMs:measured,workerKeys,stableForMs:measured-stableSince});
+    if(measured-stableSince>=5000)return workerKeys;
+    previous=measured;
+    await sleep(SAMPLE_INTERVAL_MS);
+  }
 }
 export function ttfbWindows(rows){
   const out=[];
@@ -171,6 +196,36 @@ async function modules(){
   requireThat(checkpoint.auditRevision(true)===REV,'RECOVERY_CHECKOUT');
   return {...checkpoint,...audit};
 }
+export function verifyZeroProbeQuarantine(source,quarantine,plan){
+  const approval=QUARANTINE_RECOVERY;
+  requireThat(plan.sourceId===approval.sourceId&&plan.sourceSha===approval.sourceSha&&
+    checkpointKey(plan)===approval.key,'QUARANTINE_SOURCE_PIN');
+  const gate=json(path.join(quarantine,'segment-gate.json'));
+  requireThat(equal(gate,json(path.join(quarantine,'guard-stop.json')))&&gate.status==='QUARANTINE'&&
+    gate.code==='WORKER_IDENTITY_CHANGED'&&gate.phase==='active'&&gate.started===0&&gate.resumeAllowed===false&&
+    gate.recoveryRevision===REV,'QUARANTINE_GATE');
+  const failedPlan=json(path.join(quarantine,'segment-plan.json'));
+  requireThat(failedPlan.sourceId===plan.sourceId&&failedPlan.sourceSha===plan.sourceSha&&
+    failedPlan.prior===plan.prior&&failedPlan.historyCount===plan.historyCount&&failedPlan.limit===50&&
+    checkpointKey(failedPlan)===approval.key,'QUARANTINE_PLAN');
+  const reservation=json(path.join(quarantine,'segment-reservation.json'));
+  verifyReservation(failedPlan,approval.run,reservation);
+  for(const file of ['probe-starts.jsonl','http-timings.jsonl']){
+    const evidence=path.join(quarantine,file);
+    requireThat(!fs.existsSync(evidence)||fs.statSync(evidence).size===0,'QUARANTINE_PROBE_EVIDENCE');
+  }
+  for(const file of ['snapshot.json','checkpoint.json','attempt-history.jsonl','results.jsonl']){
+    requireThat(fs.readFileSync(path.join(source,'recovery',file)).equals(
+      fs.readFileSync(path.join(quarantine,'recovery',file))),'QUARANTINE_CHECKPOINT_CHANGED');
+  }
+  const runtime=fs.readFileSync(path.join(quarantine,'runtime.log'),'utf8');
+  const reconciliation=json(path.join(quarantine,'runtime-reconciliation.json'));
+  requireThat(!/\[wrangler:info\]\s+GET\s/m.test(runtime)&&
+    ['journalAttempts','journalHttpResponses','runtimeGetLines','matched','missing','extra']
+      .every(key=>reconciliation[key]===0),'QUARANTINE_RUNTIME_GET');
+  return {status:'VERIFIED_ZERO_PROBES',quarantineCommit:approval.terminalCommit,
+    artifactId:approval.artifactId,artifactSha256:approval.artifactSha};
+}
 async function prepare(){
   const {openCheckpoint}=await modules();
   const source=process.env.SEGMENT_SOURCE_DIR,out=process.env.SEGMENT_EVIDENCE;
@@ -198,11 +253,18 @@ async function prepare(){
   requireThat(oldSummary.revision===REV&&oldSummary.complete===(prior===INVENTORY)&&oldSummary.passed===prior&&oldSummary.failed===0&&oldSummary.untested===INVENTORY-prior,'SOURCE_SUMMARY');
   const passed=new Set(c.latest().map(r=>r.url));
   requireThat(c.pending.length===limit&&c.pending.every(r=>r.kind==='article'&&!passed.has(r.url)),'SOURCE_TARGETS');
+  const plan={sourceId,sourceSha,prior,historyCount,limit,snapshotSha256:SNAP,recoveryRevision:REV,sourceJournalSha256:state.journalSha256};
+  const quarantine=process.env.SEGMENT_QUARANTINE_DIR;
+  const priorStop=quarantine?verifyZeroProbeQuarantine(source,quarantine,plan):null;
+  if(priorStop){
+    plan.quarantineCommit=priorStop.quarantineCommit;
+    checkpointKey(plan);
+  }
   fs.mkdirSync(out,{recursive:true});
   requireThat(!fs.existsSync(path.join(out,'recovery')),'OUTPUT_EXISTS');
   fs.cpSync(dir,path.join(out,'recovery'),{recursive:true,errorOnExist:true});
   atomic(path.join(out,'targets.json'),c.pending);
-  const plan={sourceId,sourceSha,prior,historyCount,limit,snapshotSha256:SNAP,recoveryRevision:REV,sourceJournalSha256:state.journalSha256};
+  if(priorStop)atomic(path.join(out,'quarantine-continuation.json'),priorStop);
   atomic(path.join(out,'segment-plan.json'),plan);
   console.log(JSON.stringify({prior,historyCount,limit,recoveryRevision:REV}));
 }
@@ -240,9 +302,15 @@ async function live(){
   const reader=resourceReader(group);
   let workerKeys=null;
   await supervise({entry:fileURLToPath(import.meta.url),args:['audit-child'],out,revision:REV,
+    async arm(){
+      workerKeys=await armStableWorkers({
+        sample:()=>verifyObservedResource(out,base,reader('startup','readiness')),
+        record:evidence=>fs.appendFileSync(path.join(out,'worker-readiness.jsonl'),JSON.stringify(evidence)+'\n')
+      });
+    },
     sample(phase,source){
       const sample=reader(phase,source);
-      workerKeys=verifyResource(base,sample,workerKeys);
+      verifyObservedResource(out,base,sample,workerKeys);
       return sample;
     },
     stopRuntime(){

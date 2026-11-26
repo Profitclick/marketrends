@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {checkpointKey, reservationFor, updateRegister, verifyRegisteredSource} from './segment-register.mjs';
+import {QUARANTINE_RECOVERY, checkpointKey, reservationFor, updateRegister, verifyRegisteredSource} from './segment-register.mjs';
 
 const plan = {recoveryRevision: 'a'.repeat(40), snapshotSha256: 'b'.repeat(64),
   sourceJournalSha256: 'c'.repeat(64), sourceId: '123', sourceSha: 'd'.repeat(64), limit: 250};
@@ -73,4 +73,27 @@ test('only one terminal transition commits and PASS pins the artifact bytes', as
   verifyRegisteredSource(remote, next, gate);
   assert.throws(() => verifyRegisteredSource(remote, {...next, sourceSha: plan.sourceSha}, gate), /REGISTER_SOURCE_NOT_PASS/);
   assert.throws(() => updateRegister(remote, reservation, 'RESERVED'), /REGISTER_WRITE_FAILED/);
+});
+
+test('the pinned zero-probe authorization has a single independent reservation key', t => {
+  const remote = repo(t);
+  const stopped = QUARANTINE_RECOVERY;
+  const source = {...plan, sourceId: stopped.sourceId, sourceSha: stopped.sourceSha, prior: 1722, historyCount: 1725,
+    recoveryRevision: '091837a1a5b1ed2be2c41fcba2d6032f2dfc3395',
+    snapshotSha256: '3e4cd3b4931f9918bf3136badf60c8a699435d212ca2abc0cf458c8b8f264d73',
+    sourceJournalSha256:'22ef87b6f2a2cbf1b1fcaa84ed98f625e0da8ea65e737897988cd62e044e7217'};
+  const original = reservationFor(source, stopped.run);
+  assert.equal(original.key, stopped.key);
+  updateRegister(remote, original, 'RESERVED');
+  updateRegister(remote, original, 'QUARANTINE');
+  const continued = {...source, quarantineCommit: stopped.terminalCommit};
+  const approved = reservationFor(continued, '8');
+  assert.notEqual(approved.key, original.key);
+  assert.equal(approved.key, reservationFor(continued,'9').key);
+  for(const changed of [{sourceId:'999'}, {prior:1723}, {limit:50}, {quarantineCommit:'f'.repeat(40)}]){
+    assert.throws(() => reservationFor({...continued,...changed},'8'), /REGISTER_QUARANTINE_PIN/);
+  }
+  updateRegister(remote, approved, 'RESERVED');
+  assert.throws(() => updateRegister(remote, reservationFor(continued,'9'), 'RESERVED'), /REGISTER_WRITE_FAILED/);
+  assert.throws(() => updateRegister(remote, original, 'RESERVED'), /REGISTER_WRITE_FAILED/);
 });

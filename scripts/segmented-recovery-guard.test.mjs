@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {batchSize,verifyResource,verifyTtfb,ttfbWindows,verifyHttpTimings,verifyProgress,reconcile,verifyReconciliation,makeLatch,guardedFetch,verifyTarget,Stop,REV,SNAP,RSS_MAX,LOCAL,MAX} from './segmented-recovery-guard.mjs';
+import {supervise} from './segment-watchdog.mjs';
+import {QUARANTINE_RECOVERY,reservationFor} from './segment-register.mjs';
+import {armStableWorkers,verifyObservedResource,verifyZeroProbeQuarantine,batchSize,verifyResource,verifyTtfb,ttfbWindows,verifyHttpTimings,verifyProgress,reconcile,verifyReconciliation,makeLatch,guardedFetch,verifyTarget,Stop,REV,SNAP,RSS_MAX,LOCAL,MAX} from './segmented-recovery-guard.mjs';
 
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const fail=(fn,code)=>assert.throws(fn,e=>e instanceof Stop&&e.code===code);
@@ -148,4 +151,83 @@ test('real source checkpoint: byte integrity, prefix, target ordering, incomplet
   fail(()=>verifyProgress(raw,next,state,targets,[targets[1].url]),'PROBE_ORDER');
   const changed=state.journal+JSON.stringify({...row,url:targets[1].url})+'\n';
   fail(()=>verifyProgress(raw,{...state,journal:changed,journalSha256:hash(changed)},state,targets,[targets[0].url]),'JOURNAL_ORDER');
+});
+
+test('startup arms only after five stable seconds and then identity remains strict',async t=>{
+  let clock=0;
+  const records=[];
+  const ids=await armStableWorkers({
+    sample:()=>clock<2000?['123:456']:['124:457'],record:value=>records.push(value),
+    now:()=>clock,sleep:ms=>{clock+=ms;}
+  });
+  assert.deepEqual(ids,['124:457']);
+  assert.equal(clock,7000);
+  assert.equal(records[2].stableForMs,0);
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'guard-rejected-sample-'));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const rejected=sample({});
+  fail(()=>verifyObservedResource(dir,base,rejected,ids),'WORKER_IDENTITY_CHANGED');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir,'rejected-resource-sample.json'))),
+    {code:'WORKER_IDENTITY_CHANGED',previousKeys:ids,sample:rejected});
+});
+
+test('startup fails closed on persistent worker churn or a telemetry gap',async()=>{
+  let clock=0;
+  const args={sample:()=>['123:'+clock],record:()=>{},now:()=>clock,sleep:ms=>{clock+=ms;}};
+  await assert.rejects(armStableWorkers(args),{code:'WORKER_STARTUP_UNSTABLE'});
+  clock=0;
+  await assert.rejects(armStableWorkers({...args,sleep:()=>{clock+=2500;}}),{code:'STARTUP_TELEMETRY_GAP'});
+});
+
+test('zero-probe continuation rejects a changed checkpoint, a start marker or a GET log',t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'guard-quarantine-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const good=path.join(root,'good'),bad=path.join(root,'bad');
+  const approval=QUARANTINE_RECOVERY;
+  const plan={sourceId:approval.sourceId,sourceSha:approval.sourceSha,prior:1722,historyCount:1725,limit:50,
+    recoveryRevision:REV,snapshotSha256:SNAP,
+    sourceJournalSha256:'22ef87b6f2a2cbf1b1fcaa84ed98f625e0da8ea65e737897988cd62e044e7217'};
+  for(const dir of [good,bad]){
+    fs.mkdirSync(path.join(dir,'recovery'),{recursive:true});
+    for(const file of ['snapshot.json','checkpoint.json','attempt-history.jsonl','results.jsonl']){
+      fs.writeFileSync(path.join(dir,'recovery',file),'same fixture bytes');
+    }
+  }
+  const put=(filename,json)=>fs.writeFileSync(path.join(bad,filename),JSON.stringify(json));
+  const gate={status:'QUARANTINE',code:'WORKER_IDENTITY_CHANGED',phase:'active',started:0,
+    resumeAllowed:false,recoveryRevision:REV};
+  put('segment-gate.json',gate);
+  put('guard-stop.json',gate);
+  put('segment-plan.json',plan);
+  put('segment-reservation.json',reservationFor(plan,approval.run));
+  put('runtime-reconciliation.json',{journalAttempts:0,journalHttpResponses:0,runtimeGetLines:0,matched:0,missing:0,extra:0});
+  const log=path.join(bad,'runtime.log');
+  fs.writeFileSync(log,'Ready');
+  assert.equal(verifyZeroProbeQuarantine(good,bad,{...plan,limit:250}).quarantineCommit,approval.terminalCommit);
+  fs.writeFileSync(log,'[wrangler:info] GET /example 200');
+  fail(()=>verifyZeroProbeQuarantine(good,bad,plan),'QUARANTINE_RUNTIME_GET');
+  fs.writeFileSync(log,'Ready');
+  const marker=path.join(bad,'probe-starts.jsonl');
+  fs.writeFileSync(marker,'{}');
+  fail(()=>verifyZeroProbeQuarantine(good,bad,plan),'QUARANTINE_PROBE_EVIDENCE');
+  fs.unlinkSync(marker);
+  fs.appendFileSync(path.join(bad,'recovery/checkpoint.json'),'changed');
+  fail(()=>verifyZeroProbeQuarantine(good,bad,plan),'QUARANTINE_CHECKPOINT_CHANGED');
+});
+
+test('the supervisor quarantines a failed startup before entering the audit child',async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'guard-startup-'));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  let stopped=0;
+  await assert.rejects(supervise({entry:path.join(dir,'unused-child.mjs'),args:[],out:dir,revision:REV,
+    arm:()=>{throw new Stop('WORKER_STARTUP_UNSTABLE');},
+    sample:()=>assert.fail('audit sampling started during readiness'),
+    stopRuntime:()=>{stopped++;}
+  }),{code:'WORKER_STARTUP_UNSTABLE'});
+  const gate=JSON.parse(fs.readFileSync(path.join(dir,'segment-gate.json')));
+  assert.equal(stopped,1);
+  assert.equal(gate.phase,'startup');
+  assert.equal(gate.started,0);
+  assert.equal(gate.status,'QUARANTINE');
+  assert.equal(fs.existsSync(path.join(dir,'probe-starts.jsonl')),false);
 });

@@ -32,12 +32,12 @@ function checkFresh(pulse, now, maxGap) {
   }
 }
 
-export function supervise({entry, args, out, revision, sample, stopRuntime, env = process.env,
+export function supervise({entry, args, out, revision, sample, arm, stopRuntime, env = process.env,
   interval = SAMPLE_INTERVAL_MS, maxGap = MAX_GAP_MS}) {
   return new Promise((resolve, reject) => {
     let child, timer, heartbeat, telemetry, stopped = false;
-    let phase = 'active';
-    const boot = monotonicMs();
+    let phase = arm ? 'startup' : 'active';
+    let boot;
     const stop = code => {
       if (stopped) return;
       stopped = true;
@@ -80,7 +80,9 @@ export function supervise({entry, args, out, revision, sample, stopRuntime, env 
       if (stopped) return;
       try { fn(); } catch (error) { stop(codeOf(error)); }
     };
-    checked(() => {
+    const start = () => checked(() => {
+      phase = 'active';
+      boot = monotonicMs();
       child = fork(entry, args, {env, stdio: ['ignore', 'inherit', 'inherit', 'ipc']});
       child.on('error', () => stop('WATCHDOG_CHILD_ERROR'));
       child.on('message', message => checked(() => {
@@ -117,6 +119,8 @@ export function supervise({entry, args, out, revision, sample, stopRuntime, env 
       emit('initial');
       timer = setInterval(() => checked(() => emit('periodic')), interval);
     });
+    if (arm) Promise.resolve().then(arm).then(start, error => stop(codeOf(error)));
+    else start();
   });
 }
 
