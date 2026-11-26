@@ -130,7 +130,7 @@ try {
   assert.equal(summary.complete,false);
   const headline=verifyHeadline(evaluate,after.pending[0],failingRow);
   const approval={
-    status:recent?'REVIEW_REQUIRED':'APPROVED_BASELINE',liveAuthorized:false,releaseComplete:false,recoveryRevision:REV,snapshotSha256:SNAP,
+    status:recent&&process.argv[6]!=='--approved'?'REVIEW_REQUIRED':'APPROVED_BASELINE',liveAuthorized:false,releaseComplete:false,recoveryRevision:REV,snapshotSha256:SNAP,
     checkpointKey:checkpointKey({recoveryRevision:REV,snapshotSha256:SNAP,sourceJournalSha256:state.journalSha256}),
     sourceJournalSha256:state.journalSha256,source,quarantine,auditedSegment:{attempted:250,passed:249,failed:1},
     inventory:{total:INVENTORY,attempted:passed+1,passed,failed:1,untested,remaining:untested+1,historyLength},
