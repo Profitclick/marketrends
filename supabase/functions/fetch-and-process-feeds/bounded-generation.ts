@@ -7,7 +7,13 @@ export const GENERATION_BUDGET = {
   max_retries: 0,
 } as const;
 
-type ClaimedCandidate = { id: string; source_key: string };
+type SelectedCandidate = { id: string; source_key: string };
+type ReservedCandidate = SelectedCandidate & { slot: number };
+type VerifiedEvidence = {
+  source_key: string; source_published_at: string; evidence_verified_at: string;
+  text: string; editorial_approved: boolean;
+};
+type ReservationSelection = Pick<VerifiedEvidence, "source_published_at" | "evidence_verified_at"> & { id: string };
 type GatewayResult<Content> = { ok: true; content: Content; usage?: unknown } | { ok: false; usage?: unknown };
 type GatewayUsage = {
   prompt_tokens: number | null;
@@ -34,23 +40,25 @@ function observedUsage(raw: unknown): GatewayUsage {
 }
 
 export async function runBoundedGeneration<Content>(
-  input: { candidate_ids: readonly string[]; limit: number; auto_publish: boolean },
+  input: { pilot_id: string; request_id: string; candidate_ids: readonly string[]; limit: number; auto_publish: boolean },
   adapters: {
-    // Atomically recheck qualification/dedup against all articles and claim the
-    // entire selection (including against overlapping or replayed runs).
-    claim: (ids: readonly string[]) => Promise<ClaimedCandidate[]>;
+    inspect: (ids: readonly string[]) => Promise<SelectedCandidate[]>;
     // Verify the selected source, current evidence and editorial usage rights without AI.
-    verifyEvidence: (candidate: ClaimedCandidate) => Promise<string | null>;
+    verifyEvidence: (candidate: SelectedCandidate) => Promise<VerifiedEvidence | null>;
+    // Call reserve_editorial_generation once, before any gateway attempt.
+    reserve: (pilotId: string, requestId: string, selection: ReservationSelection[]) => Promise<ReservedCandidate[]>;
     // Exactly one provider attempt, including no embeddings or enrichment.
-    generateOnce: (candidate: ClaimedCandidate, evidence: string) => Promise<GatewayResult<Content>>;
+    generateOnce: (candidate: ReservedCandidate, evidence: string) => Promise<GatewayResult<Content>>;
     // Must save at most one draft and prevent concurrent duplicate writes.
     saveDraft: (draft: {
-      candidate: ClaimedCandidate; content: Content; published: false; image_url: null;
+      candidate: ReservedCandidate; content: Content; published: false; image_url: null;
     }) => Promise<void>;
   },
 ) {
   const ids = input?.candidate_ids;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   if (input?.auto_publish !== false || input.limit !== GENERATION_BUDGET.max_source_articles ||
+      !uuid.test(input.pilot_id) || !uuid.test(input.request_id) ||
       !Array.isArray(ids) || ids.length < 1 || ids.length > GENERATION_BUDGET.max_source_articles ||
       Array.from(ids).some(id => typeof id !== "string" || !/^[0-9a-f]{64}$/.test(id)) ||
       new Set(ids).size !== ids.length) {
@@ -58,21 +66,41 @@ export async function runBoundedGeneration<Content>(
   }
 
   const selectedIds = [...ids];
-  const candidates = await adapters.claim(selectedIds);
-  if (!Array.isArray(candidates) || candidates.length !== selectedIds.length ||
-      Array.from(candidates).some((candidate, index) => candidate?.id !== selectedIds[index] ||
+  const selected = await adapters.inspect(selectedIds);
+  if (!Array.isArray(selected) || selected.length !== selectedIds.length ||
+      Array.from(selected).some((candidate, index) => candidate?.id !== selectedIds[index] ||
         typeof candidate.source_key !== "string" || !candidate.source_key.trim()) ||
-      new Set(candidates.map(candidate => candidate.source_key)).size !== selectedIds.length) {
-    throw new Error("invalid_candidate_claim");
+      new Set(selected.map(candidate => candidate.source_key)).size !== selectedIds.length) {
+    throw new Error("invalid_candidate_selection");
   }
   const evidence: string[] = [];
-  for (const candidate of candidates) {
-    const sourceText = await adapters.verifyEvidence(candidate);
-    if (typeof sourceText !== "string" || sourceText.length > 12000 ||
+  const selection: ReservationSelection[] = [];
+  for (const candidate of selected) {
+    const verified = await adapters.verifyEvidence(candidate);
+    const sourceText = verified?.text;
+    if (!verified || typeof sourceText !== "string" || sourceText.length > 12000 ||
         [...sourceText.trim()].length < 800 || [...sourceText].length > 6000) {
       throw new Error("generation_evidence_unavailable");
     }
+    const now = Date.now();
+    if (verified.editorial_approved !== true || verified.source_key !== candidate.source_key ||
+        !isRecentUtc(verified.source_published_at, now, 72 * 60 * 60_000) ||
+        !isRecentUtc(verified.evidence_verified_at, now, 15 * 60_000)) {
+      throw new Error("generation_source_not_current");
+    }
     evidence.push(sourceText);
+    selection.push({
+      id: candidate.id, source_published_at: verified.source_published_at,
+      evidence_verified_at: verified.evidence_verified_at,
+    });
+  }
+  const candidates = await adapters.reserve(input.pilot_id, input.request_id, selection);
+  if (!Array.isArray(candidates) || candidates.length !== selected.length ||
+      Array.from(candidates).some((candidate, index) =>
+        candidate?.id !== selected[index].id || candidate.source_key !== selected[index].source_key ||
+        (candidate.slot !== 1 && candidate.slot !== 2)) ||
+      new Set(candidates.map(candidate => candidate.slot)).size !== selected.length) {
+    throw new Error("invalid_pilot_reservation");
   }
 
   const report = {
@@ -107,4 +135,10 @@ export async function runBoundedGeneration<Content>(
     }
   }
   return report;
+}
+
+function isRecentUtc(value: string, now: number, maxAge: number): boolean {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && parsed <= now && now - parsed <= maxAge &&
+    new Date(parsed).toISOString() === value;
 }

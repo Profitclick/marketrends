@@ -48,7 +48,11 @@ Deno.test("observations keep bounded provenance and turn invalid evidence into n
 
 const first = "a".repeat(64);
 const second = "b".repeat(64);
-const request = { candidate_ids: [first, second], limit: 2, auto_publish: false };
+const request = {
+  pilot_id: "11111111-0000-0000-0000-000000000001",
+  request_id: "11111111-0000-0000-0000-000000000002",
+  candidate_ids: [first, second], limit: 2, auto_publish: false,
+};
 
 function fixture() {
   const remaining = new Set([first, second]);
@@ -58,15 +62,25 @@ function fixture() {
     completed,
     calls,
     adapters: {
-      claim(ids: readonly string[]) {
-        calls.push("claim");
-        if (ids.some(id => !remaining.has(id))) return Promise.reject(new Error("candidate_not_claimable"));
-        for (const id of ids) remaining.delete(id);
+      inspect(ids: readonly string[]) {
+        calls.push("inspect");
         return Promise.resolve(ids.map(id => ({ id, source_key: "feed.test/" + id })));
       },
-      verifyEvidence(candidate: { id: string }) {
+      verifyEvidence(candidate: { id: string; source_key: string }) {
         calls.push("evidence:" + candidate.id);
-        return Promise.resolve("verified source text ".repeat(45));
+        const now = new Date().toISOString();
+        return Promise.resolve({
+          text: "verified source text ".repeat(45), source_key: candidate.source_key,
+          evidence_verified_at: now, source_published_at: now, editorial_approved: true,
+        });
+      },
+      reserve(_pilotId: string, _requestId: string, selection: { id: string }[]) {
+        calls.push("reserve");
+        if (selection.some(({ id }) => !remaining.has(id))) {
+          return Promise.reject(new Error("pilot_request_replayed"));
+        }
+        for (const { id } of selection) remaining.delete(id);
+        return Promise.resolve(selection.map(({ id }, i) => ({ id, source_key: "feed.test/" + id, slot: i + 1 })));
       },
       generateOnce(candidate: { id: string }) {
         calls.push("gateway:" + candidate.id);
@@ -90,7 +104,7 @@ Deno.test("manual contract caps source articles, attempts and drafts and forbids
   assertEquals(report.drafts_created, 2);
   assertEquals(report.published_articles, 0);
   assertEquals(report.retries, 0);
-  assertEquals(f.calls, ["claim", "evidence:" + first, "evidence:" + second, "gateway:" + first, "gateway:" + second]);
+  assertEquals(f.calls, ["inspect", "evidence:" + first, "evidence:" + second, "reserve", "gateway:" + first, "gateway:" + second]);
   assertEquals(f.completed.map(row => {
     const { published, image_url } = row as { published: boolean; image_url: string | null };
     return [published, image_url];
@@ -98,7 +112,7 @@ Deno.test("manual contract caps source articles, attempts and drafts and forbids
   assertEquals(report.usage[0].usage, {
     prompt_tokens: 35, completion_tokens: 15, total_tokens: 50, gateway_cost: null, gateway_credits: 0.1,
   });
-  await assertRejects(() => runBoundedGeneration(request, f.adapters), Error, "candidate_not_claimable");
+  await assertRejects(() => runBoundedGeneration(request, f.adapters), Error, "pilot_request_replayed");
   assertEquals(f.completed.length, 2);
 });
 
@@ -112,14 +126,14 @@ Deno.test("invalid selection, duplicate source or missing evidence blocks all ge
   ]) await assertRejects(() => runBoundedGeneration(input, f.adapters), Error, "invalid_generation_request");
   assertEquals(f.calls, []);
   await assertRejects(() => runBoundedGeneration(request, {
-    ...f.adapters, claim: ids => Promise.resolve(ids.map(id => ({ id, source_key: "same" }))),
-  }), Error, "invalid_candidate_claim");
+    ...f.adapters, inspect: ids => Promise.resolve(ids.map(id => ({ id, source_key: "same" }))),
+  }), Error, "invalid_candidate_selection");
   assertEquals(f.calls, []);
   await assertRejects(() => runBoundedGeneration(request, {
     ...f.adapters, verifyEvidence: candidate => candidate.id === first
       ? f.adapters.verifyEvidence(candidate) : Promise.resolve(null),
   }), Error, "generation_evidence_unavailable");
-  assertEquals(f.calls, ["claim", "evidence:" + first]);
+  assertEquals(f.calls, ["inspect", "evidence:" + first]);
 });
 
 Deno.test("provider and write failures stop the batch with zero retries and data only from actual usage fields", async () => {
@@ -145,4 +159,19 @@ Deno.test("provider and write failures stop the batch with zero retries and data
   assertEquals(write.ai_calls, 1);
   assertEquals(write.drafts_created, 0);
   assertEquals(g.calls.filter(call => call.startsWith("gateway:")).length, 1);
+});
+
+Deno.test("old publication, stale evidence, unmatched sources and missing approval fail before reservation", async () => {
+  for (const patch of [
+    { source_published_at: "2021-01-01T00:00:00.000Z" },
+    { evidence_verified_at: "2021-01-01T00:00:00.000Z" },
+    { source_key: "different-source" },
+    { editorial_approved: false },
+  ]) {
+    const f = fixture();
+    await assertRejects(() => runBoundedGeneration(request, {
+      ...f.adapters, verifyEvidence: async candidate => ({ ...await f.adapters.verifyEvidence(candidate), ...patch }),
+    }), Error, "generation_source_not_current");
+    assertEquals(f.calls, ["inspect", "evidence:" + first]);
+  }
 });
