@@ -1,9 +1,46 @@
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { generateSitemaps } from "./generate-sitemaps.mjs";
 import { prerender } from "./prerender.mjs";
 import { generate404 } from "./generate-404.mjs";
 import { generatePrivateRoutes } from "./private-routes.mjs";
+
+function resolveBuildDirectory(parent, from, value, field) {
+  if (typeof value !== "string" || !value.trim() || path.isAbsolute(value)) {
+    throw new Error(`Invalid Nitro ${field}: expected a relative directory`);
+  }
+
+  function assertInside(candidate) {
+    const relative = path.relative(parent, candidate);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw new Error(`Invalid Nitro ${field}: directory must be inside ${parent}`);
+    }
+  }
+
+  const directory = path.resolve(from, value);
+  assertInside(directory);
+  const resolved = realpathSync(directory);
+  assertInside(resolved);
+  if (!statSync(resolved).isDirectory()) {
+    throw new Error(`Invalid Nitro ${field}: ${resolved} is not a directory`);
+  }
+  return resolved;
+}
+
+export function resolveNitroPublicDir(root = process.cwd()) {
+  const projectDir = realpathSync(root);
+  const lastBuildPath = path.join(projectDir, "node_modules", ".nitro", "last-build.json");
+  try {
+    const lastBuild = JSON.parse(readFileSync(lastBuildPath, "utf8"));
+    // Nitro records outputDir relative to the pointer file path itself.
+    const outputDir = resolveBuildDirectory(projectDir, lastBuildPath, lastBuild?.outputDir, "outputDir");
+    const manifest = JSON.parse(readFileSync(path.join(outputDir, "nitro.json"), "utf8"));
+    return resolveBuildDirectory(outputDir, outputDir, manifest?.publicDir, "publicDir");
+  } catch (error) {
+    throw new Error(`Cannot resolve Nitro public output from ${lastBuildPath}: ${error.message}`, { cause: error });
+  }
+}
 
 /**
  * Framework-independent public artifact build.
@@ -91,14 +128,15 @@ export async function buildPublicArtifacts(
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 if (invokedPath === import.meta.url) {
-  const outDir = process.argv[2] || "dist";
+  const output = process.argv[2] || "dist";
   const options = {
     supabaseUrl: process.env.VITE_SUPABASE_URL,
     supabasePublishableKey: process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
   };
   if (process.argv.includes("--sitemaps-only")) {
+    const outDir = output === "--nitro-public-dir" ? resolveNitroPublicDir() : output;
     await buildSitemapArtifacts(outDir, { ...options, failOnError: true });
   } else {
-    await buildPublicArtifacts(outDir, options);
+    await buildPublicArtifacts(output, options);
   }
 }
