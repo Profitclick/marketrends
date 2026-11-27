@@ -6,6 +6,8 @@ import { normalizeUrl } from "../_shared/semantic.ts";
 import { ingestionMode } from "./mode.ts";
 import { normalizeImageUrl } from "./image-url.ts";
 import { evaluatePublishEligibility } from "./publish-eligibility.ts";
+import { CANDIDATE_REGISTRY_JOB, candidateObservation, parsePipelineRequest, registryRequest } from "./candidate-registry.ts";
+import type { DbClient } from "../_shared/db.ts";
 
 
 const corsHeaders = {
@@ -61,7 +63,7 @@ const MARKETRENDS_CATEGORIES = [
   'bank', 'fintech', 'defi', 'nft', 'regulation', 'innovation'
 ];
 
-function calculatePreAIScore(item: RSSItem, feedName: string): number {
+function calculatePreAIScore(item: RSSItem, feedName: string, now = Date.now()): number {
   let score = 0;
   const titleLower = (item.title || '').toLowerCase();
   const descLower = (item.description || '').toLowerCase();
@@ -92,7 +94,7 @@ function calculatePreAIScore(item: RSSItem, feedName: string): number {
   if (item.pubDate) {
     try {
       const pubTime = new Date(item.pubDate).getTime();
-      const hoursAgo = (Date.now() - pubTime) / (1000 * 60 * 60);
+      const hoursAgo = (now - pubTime) / (1000 * 60 * 60);
       if (hoursAgo < 6) score += 0.10;
       else if (hoursAgo < 24) score += 0.05;
       else if (hoursAgo > 72) score -= 0.10;
@@ -125,7 +127,7 @@ function calculateBackupScore(article: {
   return Math.min(score, 1.0);
 }
 
-function parseRSS(xmlText: string, maxItems: number = 5): RSSItem[] {
+function parseRSS(xmlText: string, maxItems: number = 5, includeIncomplete = false): RSSItem[] {
   const items: RSSItem[] = [];
   const itemRegex = /<(?:item|entry)>([\s\S]*?)<\/(?:item|entry)>/gi;
   const matches = [...xmlText.matchAll(itemRegex)];
@@ -143,13 +145,19 @@ function parseRSS(xmlText: string, maxItems: number = 5): RSSItem[] {
                      x.match(/<enclosure[^>]*url="([^"]+)"/i)?.[1] ||
                      x.match(/<image>[\s\S]*?<url>([^<]+)<\/url>/i)?.[1] || '';
 
-    if (title && link) items.push({ title, link, description, pubDate, content, imageUrl: normalizeImageUrl(imageUrl) ?? undefined });
+    if (includeIncomplete || (title && link)) {
+      items.push({ title, link, description, pubDate, content, imageUrl: includeIncomplete ? undefined : normalizeImageUrl(imageUrl) ?? undefined });
+    }
   }
   return items;
 }
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function sourceEvidenceText(item: RSSItem): string {
+  return stripHtml(item.content || item.description || '');
 }
 
 function generateSlug(title: string): string {
@@ -162,7 +170,7 @@ async function processArticleWithAI(item: RSSItem, sourceName: string): Promise<
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
 
-  const cleanContent = stripHtml(item.content || item.description || '');
+  const cleanContent = sourceEvidenceText(item);
 
   const systemPrompt = `Du er redaksjonen i Marketrends.no – en norsk, uavhengig fagpublikasjon innen finans, fintech, teknologi og investeringer. Skriv som en nøktern, objektiv finansjournalist.
 
@@ -281,12 +289,27 @@ serve(async (req) => {
     });
   }
   const supabase = auth.supabase;
-  const body = await req.json().catch(() => ({}));
-  const { dryRun, fetchOnly, autoPublish } = ingestionMode(body ?? {});
-  const lovableKey = Deno.env.get('LOVABLE_API_KEY') ?? '';
+  const pipelineDb = supabase as unknown as DbClient;
+  const body = parsePipelineRequest(await req.text().catch(() => null));
+  if (!body) {
+    return new Response(JSON.stringify({ error: 'invalid_pipeline_request' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  const { dryRun, fetchOnly, autoPublish } = ingestionMode(body);
+  const { registryOnly, error: modeError } = registryRequest(
+    body, auth.actor, Deno.env.get('EDITORIAL_CANDIDATE_REGISTRY_ENABLED') === 'true',
+  );
+  if (modeError) {
+    return new Response(JSON.stringify({ error: modeError }), {
+      status: modeError === 'registry_requires_admin' ? 403 : 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
-  // Exclusive lock: never let two ingest runs overlap.
-  const runId = dryRun ? null : await startRun(supabase, 'fetch-and-process-feeds', 20);
+  const runId = dryRun ? null : await startRun(
+    pipelineDb, registryOnly ? CANDIDATE_REGISTRY_JOB : 'fetch-and-process-feeds', 20,
+  );
   if (!dryRun && !runId) {
     return new Response(JSON.stringify({ ok: false, skipped: true, reason: 'run already in progress' }), {
       status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -303,9 +326,10 @@ serve(async (req) => {
 
 
     // Fetch active feeds, rotate by least recently fetched
-    const { data: allFeeds, error: feedsError } = await supabase
+    const feedQuery = supabase
       .from('rss_feeds').select('*').eq('active', true)
       .order('last_fetched', { ascending: true, nullsFirst: true });
+    const { data: allFeeds, error: feedsError } = await (registryOnly ? feedQuery.order('id') : feedQuery);
 
     if (feedsError) throw feedsError;
 
@@ -317,7 +341,7 @@ serve(async (req) => {
     let totalAutoPublished = 0;
 
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count: publishedLast24hCount } = await supabase
+    const { count: publishedLast24hCount } = registryOnly ? { count: 0 } : await supabase
       .from('articles')
       .select('id', { count: 'exact', head: true })
       .eq('published', true)
@@ -330,7 +354,7 @@ serve(async (req) => {
 
     // Collect all items from all feeds first, then score and sort
     const allItems: { item: RSSItem; feedName: string; feedId: string; preScore: number }[] = [];
-    const feedChecks: { name: string; status: number | null; items: number; error?: string }[] = [];
+    const feedChecks: { name: string; status: number | null; items: number; error?: string; feed_id?: string }[] = [];
 
     for (const feed of (feeds as RSSFeed[])) {
       try {
@@ -339,13 +363,19 @@ serve(async (req) => {
           signal: AbortSignal.timeout(10000),
         });
 
-        if (dryRun || fetchOnly) {
-          const items = rssResponse.ok ? parseRSS(await rssResponse.text(), 5) : [];
-          feedChecks.push({ name: feed.name, status: rssResponse.status, items: items.length });
+        if (dryRun || fetchOnly || registryOnly) {
+          const items = rssResponse.ok ? parseRSS(await rssResponse.text(), 5, registryOnly) : [];
+          feedChecks.push({
+            name: feed.name, status: rssResponse.status, items: items.length,
+            ...(registryOnly ? { feed_id: feed.id } : {}),
+          });
           for (const item of items) {
-            allItems.push({ item, feedName: feed.name, feedId: feed.id, preScore: calculatePreAIScore(item, feed.name) });
+            allItems.push({
+              item, feedName: feed.name, feedId: feed.id,
+              preScore: calculatePreAIScore(item, feed.name, registryOnly ? startTime : undefined),
+            });
           }
-          if (!dryRun) await supabase.from('rss_feeds').update({ last_fetched: new Date().toISOString() }).eq('id', feed.id);
+          if (!dryRun && !registryOnly) await supabase.from('rss_feeds').update({ last_fetched: new Date().toISOString() }).eq('id', feed.id);
           continue;
         }
 
@@ -376,12 +406,31 @@ serve(async (req) => {
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         console.error(`Error processing ${feed.name}: ${msg}`);
-        feedChecks.push({ name: feed.name, status: null, items: 0, error: msg });
-        if (!dryRun) {
+        feedChecks.push({
+          name: feed.name, status: null, items: 0, error: msg,
+          ...(registryOnly ? { feed_id: feed.id } : {}),
+        });
+        if (!dryRun && !registryOnly) {
           await logToSystem(supabase, 'error', 'rss_fetch', `Error: ${feed.name}: ${msg}`, null, undefined, feed.id);
           await supabase.from('rss_feeds').update({ last_fetched: new Date().toISOString() }).eq('id', feed.id);
         }
       }
+    }
+
+    if (registryOnly) {
+      const { data, error } = await supabase.rpc('record_editorial_candidate_batch', {
+        _run_id: runId,
+        _items: allItems.map(entry => candidateObservation(entry, sourceEvidenceText(entry.item))),
+      });
+      if (error || !data || typeof data !== 'object' || data.run_id !== runId) {
+        throw new Error('candidate_registry_write_unconfirmed');
+      }
+      const report = { ...data, feeds: feedChecks };
+      const failedFeeds = feedChecks.filter(feed => feed.status !== 200).length;
+      await finishRun(pipelineDb, runId, failedFeeds > 0 ? 'partial' : 'success', {
+        processed: allItems.length, failed: failedFeeds, details: report,
+      });
+      return new Response(JSON.stringify(report), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (dryRun || fetchOnly) {
@@ -391,12 +440,13 @@ serve(async (req) => {
         items_above_threshold: allItems.filter(i => i.preScore >= PRE_AI_THRESHOLD).length,
         ai_calls: 0, articles_created: 0, articles_auto_published: 0,
       };
-      if (runId) await finishRun(supabase, runId, feedChecks.some(f => f.status !== 200) ? 'partial' : 'success', {
+      if (runId) await finishRun(pipelineDb, runId, feedChecks.some(f => f.status !== 200) ? 'partial' : 'success', {
         processed: allItems.length, details: report,
       });
       return new Response(JSON.stringify(report), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY') ?? '';
     // Sort by pre-AI score (highest first)
     allItems.sort((a, b) => b.preScore - a.preScore);
     console.log(`Total items collected: ${allItems.length}, processing top ${RATE_LIMIT.maxArticlesPerRun} by score`);
@@ -471,7 +521,7 @@ serve(async (req) => {
       let semanticAvailable = true;
       let semanticDecision = 'unique';
       try {
-        const verdict = await evaluateDuplicate(supabase, lovableKey, {
+        const verdict = await evaluateDuplicate(pipelineDb, lovableKey, {
           type: 'article',
           ref: finalSlug,
           title: aiResult.title,
@@ -486,7 +536,7 @@ serve(async (req) => {
         semanticDecision = verdict.decision;
         if (verdict.decision === 'duplicate') {
           totalSemanticDupes++;
-          await recordVerdict(supabase, {
+          await recordVerdict(pipelineDb, {
             type: 'article', ref: finalSlug, title: aiResult.title, text: '',
           }, verdict, 'blocked-at-ingest');
           await logToSystem(supabase, 'info', 'ai_processing',
@@ -495,7 +545,7 @@ serve(async (req) => {
           continue;
         }
         if (verdict.decision === 'merge') {
-          await recordVerdict(supabase, {
+          await recordVerdict(pipelineDb, {
             type: 'article', ref: finalSlug, title: aiResult.title, text: '',
           }, verdict, 'flagged-near-duplicate');
         }
@@ -518,7 +568,7 @@ serve(async (req) => {
         content: aiResult.content || '',
         tagsLength: Array.isArray(aiResult.tags) ? aiResult.tags.length : 0,
         sourceName: feedName,
-        sourceEvidenceChars: cleanContent.length,
+        sourceEvidenceChars: sourceEvidenceText(item).length,
         semanticAvailable,
         semanticDecision,
         autoPublishEnabled: autoPublish,
@@ -605,7 +655,7 @@ serve(async (req) => {
 
     console.log("Processing complete:", JSON.stringify(summary));
     await logToSystem(supabase, 'info', 'rss_fetch', 'Processing completed', summary);
-    if (runId) await finishRun(supabase, runId, totalFailed > 0 ? 'partial' : 'success', {
+    if (runId) await finishRun(pipelineDb, runId, totalFailed > 0 ? 'partial' : 'success', {
       processed: totalProcessed, published: totalAutoPublished, updated: totalNew,
       duplicates_blocked: totalSemanticDupes, failed: totalFailed, details: summary,
     });
@@ -616,7 +666,7 @@ serve(async (req) => {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error("Feed processing error:", error);
-    if (runId) await finishRun(supabase, runId, 'failed', { failed: totalFailed, duplicates_blocked: totalSemanticDupes }, msg);
+    if (runId) await finishRun(pipelineDb, runId, 'failed', { failed: totalFailed, duplicates_blocked: totalSemanticDupes }, msg);
     return new Response(JSON.stringify({ error: msg }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
