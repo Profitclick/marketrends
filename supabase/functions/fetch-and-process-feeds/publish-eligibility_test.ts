@@ -28,6 +28,14 @@ Deno.test("insufficient source evidence blocks publishing", () => {
   assertEquals(r.reasons.includes('insufficient_source_evidence'), true);
 });
 
+Deno.test("450-word publishing threshold is inclusive", () => {
+  const draft = (words: number) => ({
+    ...base, content: "fakta ".repeat(words - 3) + "Norsk kontekst Konsekvenser",
+  });
+  assertEquals(evaluatePublishEligibility(draft(449)).reasons, ["content_too_thin"]);
+  assertEquals(evaluatePublishEligibility(draft(450)).eligible, true);
+});
+
 Deno.test("semantic failure fails closed for publishing", () => {
   const r = evaluatePublishEligibility({ ...base, semanticAvailable: false, semanticDecision: 'unavailable' });
   assertEquals(r.eligible, false);
