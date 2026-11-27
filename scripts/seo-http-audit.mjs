@@ -15,7 +15,8 @@ const routes = [
   { id: 'unknown', url: `${AUDIT}/${S}`, kind: 'not_found' },
   ...missing,
   { id: 'legacy_cluster', url: `${AUDIT}/cluster/ai`, kind: 'redirect', target: `${AUDIT}/ai` },
-  { id: 'unknown_ressurser', url: `${AUDIT}/ressurser/${S}`, kind: 'not_found', advisory: true },
+  { id: 'unknown_ressurser', url: `${AUDIT}/ressurser/${S}`, kind: 'not_found' },
+  { id: 'known_resource', url: `${AUDIT}/ressurser/datasets`, kind: 'resource_variant' },
   { id: 'sitemap_index', url: `${AUDIT}/sitemap-index.xml`, kind: 'sitemap_index' },
   {
     id: 'worker_news',
@@ -66,6 +67,10 @@ function evaluate(route, status, location, contentType, body) {
       expect(containsDirective(robots, 'noindex') && containsDirective(robots, 'nofollow'), 'Private initial HTML must have robots noindex,nofollow');
       expect(containsDirective(googlebot, 'noindex') && containsDirective(googlebot, 'nofollow'), 'Private initial HTML must have googlebot noindex,nofollow');
       expect(!actualCanonical, 'Private initial HTML must not have a public canonical');
+      break;
+    case 'resource_variant':
+      expect(status === 200, 'Known resource variant must serve HTTP 200');
+      expect(actualCanonical === `${ORIGIN}/ressurser`, 'Resource variant must retain its parent canonical');
       break;
     case 'not_found':
       expect(status === 404, 'Unknown route must return real HTTP 404, not SPA 200');

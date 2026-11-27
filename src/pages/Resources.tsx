@@ -15,6 +15,8 @@ const SECTIONS = [
   { key: "industry", title: "Bransjerapporter", icon: Briefcase, desc: "Rapporter fra industri og bransjeorganisasjoner." },
 ];
 
+export const isResourceType = (type: string) => SECTIONS.some(section => section.key === type);
+
 const Resources = () => {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
